@@ -853,30 +853,34 @@ body {
 }
 
 /* ============================================
-   バーチャルパッド
+   バーチャルパッド（グローバル配置）
    ============================================ */
 .virtual-pad {
     display: flex;
-    gap: 0.4rem;
+    gap: 0.8rem;
     justify-content: center;
-    margin-top: 0.2rem;
+    width: 100%;
+    max-width: 600px;
+    margin: 0.5rem auto 0;
+    padding: 0 0.5rem;
 }
 
 .pad-btn {
     flex: 1;
-    font-size: 1.1rem;
-    padding: 0.5rem 0;
-    border: 2px solid var(--border-color);
-    border-radius: 12px;
+    font-size: 1.4rem;
+    padding: 0.8rem 0;
+    border: 3px solid var(--border-color);
+    border-radius: 16px;
     background: #fff;
     cursor: pointer;
-    box-shadow: 0 4px 0 var(--border-color);
+    box-shadow: 0 6px 0 var(--border-color);
     transition: all 0.1s;
     user-select: none;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .pad-btn:active {
-    transform: translateY(4px);
+    transform: translateY(6px);
     box-shadow: 0 0px 0 var(--border-color);
 }
 
@@ -886,7 +890,7 @@ body {
     border-color: var(--accent-pink);
     color: var(--accent-pink);
     font-weight: bold;
-    box-shadow: 0 4px 0 #ffa3c2;
+    box-shadow: 0 6px 0 #ffa3c2;
 }
 
 .pad-btn-primary:active {
