@@ -1468,26 +1468,39 @@ footer.battle-footer, footer {
    📱 スマホ・タブレット向け レスポンシブ対応
    ============================================ */
 @media (max-width: 768px) {
-    /* バトルフィールド全体の余白を詰める */
+    /* バトルフィールド全体の余白を詰めて強制的に横並び */
     #battle-field {
-        gap: 0.25rem;
-        padding: 0.25rem;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        gap: 0.2rem !important;
+        padding: 0.1rem !important;
     }
 
     /* 盤面のコンテナも余白・枠線を細くする */
     .board-container {
-        padding: 0.3rem;
-        border-width: 3px;
-        gap: 0.3rem;
-        border-radius: 12px;
+        padding: 0.2rem !important;
+        border-width: 2px !important;
+        gap: 0.2rem !important;
+        border-radius: 8px !important;
+        min-width: 0 !important;
+    }
+
+    /* VSの仕切りはスマホでは邪魔なので非表示にして幅を節約 */
+    .vs-divider {
+        display: none !important;
+    }
+
+    /* キャンバスの最小高さを下げて幅の制約を解除する */
+    .canvas-wrapper {
+        min-height: 150px !important;
     }
 
     /* ステータス周りをコンパクトに */
     .side-header {
-        flex-direction: column;
-        gap: 0.2rem;
-        padding-bottom: 0.2rem;
-        border-width: 2px;
+        flex-direction: column !important;
+        gap: 0.1rem !important;
+        padding-bottom: 0.2rem !important;
+        border-width: 2px !important;
     }
 
     .char-thumb-container {
