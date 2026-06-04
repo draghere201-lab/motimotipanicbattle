@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>トリッカルもちもちパニックバトル</title>
+    <meta name="description" content="トリッカルのキャラクターたちが激突！物理演算パズルバトルゲーム">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=Outfit:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
+</head>
+<body>
+
+    <!-- ========== SCREEN 1: タイトル画面 ========== -->
+    <div id="screen-title" class="screen active">
+        <button id="btn-settings" class="btn-icon" title="設定" aria-label="設定">⚙️</button>
+
+        <div class="title-bg-decoration">
+            <div class="deco-circle c1"></div>
+            <div class="deco-circle c2"></div>
+            <div class="deco-circle c3"></div>
+        </div>
+        <div class="title-content">
+            <div class="title-logo-sub">✦ トリッカル同人作品 ✦</div>
+
+            <!-- カラフルロゴ -->
+            <div class="title-logo-wrap" aria-label="もちもちパニックバトル">
+                <div class="title-logo-row row1">
+                    <span class="tl c-pink">も</span><span class="tl c-orange">ち</span><span class="tl c-yellow">も</span><span class="tl c-lime">ち</span>
+                    <span class="tl-star">★</span>
+                </div>
+                <div class="title-logo-row row2">
+                    <span class="tl c-blue">パ</span><span class="tl c-purple">ニ</span><span class="tl c-pink">ッ</span><span class="tl c-orange">ク</span>
+                </div>
+                <div class="title-logo-row row3">
+                    <span class="tl c-yellow">バ</span><span class="tl c-lime">ト</span><span class="tl c-blue">ル</span>
+                    <span class="tl-star">⭐</span>
+                </div>
+            </div>
+
+            <div class="title-char-showcase">
+                <img src="assets/char/エルフィン.png" alt="エルフィン" class="title-char left-char">
+                <img src="assets/char/ベリータ.png"   alt="ベリータ"  class="title-char right-char">
+            </div>
+            <div class="title-buttons">
+                <button id="btn-start-scoreattack" class="btn btn-primary" style="background: #ff3366; box-shadow: 0 6px 0 #cc0033;">⭐ スコアアタック(90秒)</button>
+                <button id="btn-start-single" class="btn btn-primary">▶ ひとりで遊ぶ(CPU戦)</button>
+                <button id="btn-start-online" class="btn btn-primary c-purple-btn">🌐 だれかと遊ぶ(通信対戦)</button>
+                <button id="btn-howto" class="btn btn-secondary">？ あそびかた</button>
+            </div>
+        </div>
+
+        <!-- あそびかたポップアップ -->
+        <div id="howto-overlay" class="overlay hidden">
+            <div class="modal howto-modal">
+                <h2>🎮 あそびかた</h2>
+                <div class="howto-sections">
+                    <div class="howto-section">
+                        <h3>📖 基本ルール</h3>
+                        <ul class="howto-list">
+                            <li>🔗 同じ色のコマを <strong>5個以上</strong> くっつけると消えるよ！</li>
+                            <li>💥 連鎖や大量消しで相手に <strong>お邪魔（スピキ）</strong> を送ろう！</li>
+                            <li>🛡️ 予告スピキがある時にコマを消すと <strong>相殺</strong> できるよ！</li>
+                            <li>⭐ コマを消してゲージを溜めると <strong>必殺スキル</strong> が使える！</li>
+                            <li>💀 コマが一番上の <strong>デッドライン</strong> を超えたら負け！</li>
+                        </ul>
+                    </div>
+                    <div class="howto-section">
+                        <h3>🎮 操作方法</h3>
+                        <ul class="howto-list">
+                            <li><strong>移動</strong>： [←] [→] キー、または 画面の左右ボタン</li>
+                            <li><strong>回転</strong>： [↑] [Z] [X] キー、または「回転」ボタン</li>
+                            <li><strong>高速落下</strong>： [↓] キー、または「↓」ボタン</li>
+                            <li><strong>スキル発動</strong>： [スペース] キー、または スキルボタン</li>
+                        </ul>
+                    </div>
+                </div>
+                <button id="btn-howto-close" class="btn btn-primary">とじる</button>
+            </div>
+        </div>
+
+        <!-- 設定ポップアップ -->
+        <div id="settings-overlay" class="overlay hidden">
+            <div class="modal settings-modal">
+                <h2>⚙️ 設定</h2>
+                <div class="settings-group">
+                    <label for="bgm-volume-slider">BGM音量</label>
+                    <input type="range" id="bgm-volume-slider" class="range-slider" min="0" max="1" step="0.05" value="0.3">
+                </div>
+                <div class="settings-group">
+                    <label for="se-volume-slider">ボイス・SE音量</label>
+                    <input type="range" id="se-volume-slider" class="range-slider" min="0" max="1" step="0.05" value="0.7">
+                </div>
+                <button id="btn-settings-close" class="btn btn-secondary" style="margin-top: 1.5rem;">とじる</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== SCREEN 2: キャラ選択画面 ========== -->
+    <div id="screen-select" class="screen">
+        <div class="select-header">
+            <button id="btn-back-title" class="btn-back">← もどる</button>
+            <h2 class="select-title">キャラクターを選んでね！</h2>
+        </div>
+        <div id="char-list" class="char-list-grid">
+            <!-- JSで生成 -->
+        </div>
+
+        <!-- キャラクター登場演出 -->
+        <div id="char-intro-overlay" class="overlay hidden">
+            <div class="char-intro-content">
+                <img id="char-intro-img" src="" alt="character" class="char-intro-img">
+                <h2 id="char-intro-name" class="char-intro-name"></h2>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== SCREEN 2.5: オンラインメニュー画面 ========== -->
+    <div id="screen-online-menu" class="screen">
+        <div class="select-header">
+            <button id="btn-back-online-menu" class="btn-back">← もどる</button>
+            <h2 class="select-title">通信対戦モード</h2>
+        </div>
+        <div class="online-menu-content">
+            <div class="menu-box player-name-box">
+                <h3>📛 プレイヤー名</h3>
+                <input type="text" id="input-player-name" placeholder="ゲスト" class="input-password" maxlength="10">
+                <p class="name-desc" style="font-size:0.85rem; color:#fff; margin-top:0.5rem;">※対戦相手に表示されます</p>
+            </div>
+            
+            <div class="menu-box">
+                <h3>フリーマッチ</h3>
+                <p>だれかとランダムに対戦します</p>
+                <button id="btn-free-match" class="btn btn-primary c-orange-btn">フリーマッチを探す</button>
+            </div>
+            <div class="menu-box">
+                <h3>あいことばマッチ</h3>
+                <p>同じあいことばを入力した人と対戦します</p>
+                <input type="text" id="input-room-password" placeholder="あいことば" class="input-password" maxlength="10">
+                <button id="btn-password-match" class="btn btn-primary">部屋に入る / 作る</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== SCREEN 2.7: マッチング待機・Ready画面 ========== -->
+    <div id="screen-matching" class="screen">
+        <div class="matching-container">
+            <h2 id="matching-status-text" class="matching-title">対戦相手を探しています...</h2>
+            <div class="loader" id="matching-loader"></div>
+            
+            <div id="matching-players" class="matching-players hidden">
+                <div class="match-player">
+                    <img id="match-my-char" src="" alt="Me">
+                    <div class="match-name" id="match-my-name">あなた</div>
+                    <div id="match-my-ready" class="ready-status">準備中...</div>
+                </div>
+                <div class="vs-text">VS</div>
+                <div class="match-player">
+                    <img id="match-opp-char" src="" alt="Opponent">
+                    <div class="match-name" id="match-opp-name">あいて</div>
+                    <div id="match-opp-ready" class="ready-status">準備中...</div>
+                </div>
+            </div>
+            
+            <button id="btn-ready" class="btn btn-primary btn-large hidden">準備OK！</button>
+            <button id="btn-cancel-match" class="btn btn-secondary" style="margin-top: 20px;">キャンセル</button>
+        </div>
+    </div>
+
+    <!-- ========== SCREEN 3: バトル画面 ========== -->
+    <div id="screen-battle" class="screen">
+        <header class="game-header">
+            <h1 class="game-title">もちもちパニックバトル</h1>
+            <div id="main-timer-display" class="main-timer hidden">⏰ 90</div>
+            <button id="btn-quit" class="btn-quit">やめる</button>
+        </header>
+
+        <main id="battle-field">
+            <!-- プレイヤーボード -->
+            <div class="board-container player-side">
+                <div class="side-header">
+                    <div class="char-thumb-container">
+                        <img id="player-char-img" src="" alt="Player Char" class="char-thumb">
+                    </div>
+                    <div class="status-info">
+                        <div class="char-name" id="player-char-name">プレイヤー</div>
+                        <div class="score-board">SCORE: <span id="player-score">0</span></div>
+                    </div>
+                </div>
+                <div class="board-sub-info">
+                    <div class="next-box">NEXT: 
+                        <div id="player-next-preview" class="next-preview-container"></div>
+                    </div>
+                    <div class="ojyama-warning">💀予告スピキ: <div id="player-ojyama-icons" class="supiki-icon-container"></div></div>
+                </div>
+                <div class="canvas-area-row">
+                    <div id="player-chain-gauge" class="chain-gauge-container">
+                        <div class="chain-gauge-label">CHAIN<br>TIME</div>
+                        <div class="chain-gauge-bar-wrapper">
+                            <div id="player-chain-bar" class="chain-gauge-bar"></div>
+                        </div>
+                    </div>
+                    <div class="canvas-wrapper" id="player-canvas">
+                        <div class="deadline-line"></div>
+                        <div id="player-chain-display" class="chain-display hidden"></div>
+                    </div>
+                </div>
+                <div class="skill-gauge-container">
+                    <div class="skill-gauge-label">SKILL</div>
+                    <div class="skill-gauge-bar-wrapper">
+                        <div id="player-skill-bar" class="skill-gauge-bar" style="width:0%"></div>
+                    </div>
+                    <button id="player-skill-btn" class="skill-btn" disabled>スキル</button>
+                </div>
+
+                <!-- バーチャルパッド（プレイヤー用） -->
+                <div class="virtual-pad">
+                    <button id="pad-left" class="pad-btn">⬅️</button>
+                    <button id="pad-down" class="pad-btn">⬇️</button>
+                    <button id="pad-right" class="pad-btn">➡️</button>
+                    <button id="pad-rotate" class="pad-btn pad-btn-primary">🔄 回転</button>
+                </div>
+            </div>
+
+            <!-- VS仕切り -->
+            <div class="vs-divider"><div class="vs-text">VS</div></div>
+
+            <!-- CPUボード -->
+            <div class="board-container cpu-side">
+                <div class="side-header">
+                    <div class="char-thumb-container">
+                        <img id="cpu-char-img" src="" alt="CPU Char" class="char-thumb">
+                    </div>
+                    <div class="status-info">
+                        <div class="char-name" id="cpu-char-name">あいて</div>
+                        <div class="score-board">SCORE: <span id="cpu-score">0</span></div>
+                    </div>
+                </div>
+                <div class="board-sub-info">
+                    <div class="next-box">NEXT: 
+                        <div id="cpu-next-preview" class="next-preview-container"></div>
+                    </div>
+                    <div class="ojyama-warning">💀予告スピキ: <div id="cpu-ojyama-icons" class="supiki-icon-container"></div></div>
+                </div>
+                <div class="canvas-area-row">
+                    <div id="cpu-chain-gauge" class="chain-gauge-container">
+                        <div class="chain-gauge-label">CHAIN<br>TIME</div>
+                        <div class="chain-gauge-bar-wrapper">
+                            <div id="cpu-chain-bar" class="chain-gauge-bar"></div>
+                        </div>
+                    </div>
+                    <div class="canvas-wrapper" id="cpu-canvas">
+                        <div class="deadline-line"></div>
+                        <div id="cpu-chain-display" class="chain-display hidden"></div>
+                    </div>
+                </div>
+                <div class="skill-gauge-container">
+                    <div class="skill-gauge-label">SKILL</div>
+                    <div class="skill-gauge-bar-wrapper">
+                        <div id="cpu-skill-bar" class="skill-gauge-bar" style="width:0%"></div>
+                    </div>
+                    <div class="cpu-skill-status">AUTO</div>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <div class="controls">
+                <p>💻 PC操作: [←][→] 移動 / [↑] 回転 / [↓] 高速落下 / [Space] スキル</p>
+                <p>📱 スマホ操作: 画面のボタンをタップ！</p>
+            </div>
+        </footer>
+
+        <!-- スキルカットインレイヤー -->
+        <div id="cut-in" class="cut-in-layer hidden">
+            <div class="cut-in-bg"></div>
+            <div class="cut-in-body">
+                <img id="cut-in-img" src="" alt="Character">
+                <div class="cut-in-text-box">
+                    <div id="cut-in-char-name" class="cut-in-char"></div>
+                    <div id="cut-in-skill-name" class="cut-in-skill"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- カウントダウンオーバーレイ -->
+        <div id="countdown-overlay" class="countdown-overlay hidden">
+            <div id="countdown-text" class="countdown-text">READY?</div>
+        </div>
+
+        <!-- リザルト画面 -->
+        <div id="result-overlay" class="overlay hidden">
+            <div class="modal result-modal">
+                <h2 id="result-title">YOU WIN!</h2>
+                <div class="result-details">
+                    <div class="result-score-row" id="result-row-player">
+                        <span>あなた</span><span id="result-player-score">0</span>
+                    </div>
+                    <div class="result-score-row" id="result-row-cpu">
+                        <span>CPU</span><span id="result-cpu-score">0</span>
+                    </div>
+                </div>
+                <div class="result-buttons">
+                    <button id="restart-btn" class="btn btn-primary">もう一度！</button>
+                    <button id="btn-back-select" class="btn btn-secondary">キャラ選択へ</button>
+                    <button id="btn-back-to-title" class="btn btn-secondary" style="margin-top:10px; width:100%;">タイトルへ戻る</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JSは1ファイルにまとめてmoduleなしで読み込む (file://対応) -->
+    <script src="js/game.js"></script>
+</body>
+</html>
