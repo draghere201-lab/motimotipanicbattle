@@ -45,6 +45,21 @@ const COLOR_LIST = [
 /* ---- Matter.js エイリアス ---- */
 const { Engine, Render, Runner, Bodies, Composite, Events, Body } = Matter;
 
+/* ================================================================
+   PRNG - 擬似乱数生成器 (落下コマを共通化するため)
+   ================================================================ */
+class PRNG {
+    constructor(seed) {
+        this.a = seed !== null && seed !== undefined ? seed : Math.floor(Math.random() * 2147483647);
+    }
+    next() {
+        var t = this.a += 0x6D2B79F5;
+        t = Math.imul(t ^ t >>> 15, t | 1);
+        t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    }
+}
+
 function showScreen(id) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     const target = document.getElementById(id);
@@ -488,8 +503,22 @@ class NetworkManager {
         
         let timeoutCheck = null;
         
+        // インターネット越しの接続の成功率を上げるため、複数のSTUNサーバーを指定
+        const peerOptions = {
+            debug: 2,
+            config: {
+                'iceServers': [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:stun1.l.google.com:19302' },
+                    { urls: 'stun:stun2.l.google.com:19302' },
+                    { urls: 'stun:stun3.l.google.com:19302' },
+                    { urls: 'stun:stun4.l.google.com:19302' }
+                ]
+            }
+        };
+        
         // 1. まず通常のランダムIDで初期化し、ゲストとして接続を試みる
-        this.peer = new Peer({ debug: 2 });
+        this.peer = new Peer(peerOptions);
         
         this.peer.on('open', (myRandomId) => {
             this.myId = myRandomId;
@@ -522,7 +551,7 @@ class NetworkManager {
                     // 繋がらなかったら、自分がホストになってみる
                     this.peer.emit('error', { type: 'peer-unavailable' });
                 }
-            }, 5000); // 5秒待って繋がらなければ相手がいないと判断
+            }, 15000); // インターネット越しは時間がかかるため、15秒待機にする
         });
         
         // エラーハンドリング
@@ -536,7 +565,7 @@ class NetworkManager {
                 
                 // ホストとして対象IDで再初期化
                 setTimeout(() => {
-                    this.peer = new Peer(targetId, { debug: 2 });
+                    this.peer = new Peer(targetId, peerOptions);
                     
                     this.peer.on('open', (id) => {
                         this.myId = id;
@@ -661,7 +690,8 @@ class GameLogic {
    GameBoard クラス
    ================================================================ */
 class GameBoard {
-    constructor(id, elementId, character, gameManager, isNetwork = false) {
+    constructor(id, elementId, character, gameManager, isNetwork = false, sharedSeed = null) {
+        this.prng         = new PRNG(sharedSeed);
         this.id           = id;
         this.elementId    = elementId;
         this.character    = character;
@@ -1528,6 +1558,11 @@ class GameBoard {
         sounds.playSkill();
         voice.playSkillVoice(this.character.name);
         
+        // ネットワークモード時、自分のスキル発動を相手に通知
+        if (this.gameManager.gameMode === 'online' && this.id === 'player') {
+            net.send({ type: 'skill_used' });
+        }
+        
         this._lockActivePiece();
         this.isProcessing = true;
 
@@ -1691,7 +1726,7 @@ class GameBoard {
     }
 
     _randType() {
-        return COLOR_LIST[Math.floor(Math.random() * COLOR_LIST.length)];
+        return COLOR_LIST[Math.floor(this.prng.next() * COLOR_LIST.length)];
     }
 
     _updateAllUI() {
@@ -2033,7 +2068,14 @@ class MotiMotiPanicBattle {
             document.getElementById('match-my-ready').innerText = '準備完了！';
             document.getElementById('match-my-ready').classList.add('is-ready');
             btnReady.classList.add('hidden'); // 何度も押せないように隠す
-            net.send({ type: 'ready' });
+            
+            if (net.isHost) {
+                this.randomSeed = Math.floor(Math.random() * 2147483647);
+                net.send({ type: 'ready', seed: this.randomSeed });
+            } else {
+                net.send({ type: 'ready' });
+            }
+            
             this._checkBothReady();
         });
 
@@ -2053,6 +2095,9 @@ class MotiMotiPanicBattle {
             if (matchOppName) matchOppName.innerText = this.oppName;
         } else if (data.type === 'ready') {
             this.oppReady = true;
+            if (data.seed !== undefined) {
+                this.randomSeed = data.seed;
+            }
             document.getElementById('match-opp-ready').innerText = '準備完了！';
             document.getElementById('match-opp-ready').classList.add('is-ready');
             this._checkBothReady();
@@ -2093,6 +2138,11 @@ class MotiMotiPanicBattle {
         } else if (data.type === 'gameover') {
             // 相手がゲームオーバーになった通知を受信（自分の勝利）
             this.triggerGameOver('cpu');
+        } else if (data.type === 'skill_used' && this.cpuBoard) {
+            // 相手がスキルを使用した
+            this.cpuBoard._showCutIn();
+            sounds.playSkill();
+            if (this.oppChar) voice.playSkillVoice(this.oppChar.name);
         }
     }
 
@@ -2149,10 +2199,10 @@ class MotiMotiPanicBattle {
 
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
-                this.playerBoard = new GameBoard('player', 'player-canvas', playerChar, this, false);
+                this.playerBoard = new GameBoard('player', 'player-canvas', playerChar, this, false, this.randomSeed);
                 
                 if (this.gameMode !== 'scoreAttack') {
-                    this.cpuBoard = new GameBoard('cpu', 'cpu-canvas', oppChar, this, this.gameMode === 'online');
+                    this.cpuBoard = new GameBoard('cpu', 'cpu-canvas', oppChar, this, this.gameMode === 'online', this.randomSeed);
                     this.playerBoard.opponentBoard = this.cpuBoard;
                     this.cpuBoard.opponentBoard    = this.playerBoard;
                 }
