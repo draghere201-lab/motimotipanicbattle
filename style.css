@@ -1550,11 +1550,17 @@ footer.battle-footer, footer {
         width: 2px;
     }
 
-    /* スキルボタンまわりをスリム化 */
+    /* スキルボタンまわりをスリム化しつつゲージを維持 */
     .skill-gauge-container {
         flex-direction: column;
         gap: 0.2rem;
         padding: 0.2rem;
+        width: 100%;
+    }
+
+    .skill-gauge-bar-wrapper {
+        width: 100%;
+        min-height: 12px;
     }
     
     .skill-btn {
