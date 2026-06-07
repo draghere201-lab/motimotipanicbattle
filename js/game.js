@@ -604,6 +604,8 @@ class NetworkManager {
     }
 
     disconnect() {
+        this.onClose = null; // 意図的な切断時にアラートが出ないようにする
+        this.onData = null;
         if (this.conn) {
             this.conn.close();
             this.conn = null;
