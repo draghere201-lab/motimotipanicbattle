@@ -46,7 +46,8 @@
                 <img src="assets/char/ベリータ.png"   alt="ベリータ"  class="title-char right-char">
             </div>
             <div class="title-buttons">
-                <button id="btn-start-scoreattack" class="btn btn-primary" style="background: #ff3366; box-shadow: 0 6px 0 #cc0033;">⭐ スコアアタック(90秒)</button>
+                <button id="btn-start-scoreattack" class="btn btn-primary" style="background: #ff3366; box-shadow: 0 6px 0 #cc0033;">⭐ スコアタ(90秒)</button>
+                <button id="btn-start-scoreattack-180" class="btn btn-primary" style="background: #ff3366; box-shadow: 0 6px 0 #cc0033;">⭐ スコアタ(180秒)</button>
                 <button id="btn-start-single" class="btn btn-primary">▶ ひとりで遊ぶ(CPU戦)</button>
                 <button id="btn-start-online" class="btn btn-primary c-purple-btn">🌐 だれかと遊ぶ(通信対戦)</button>
                 <button id="btn-howto" class="btn btn-secondary">？ あそびかた</button>
@@ -215,6 +216,11 @@
                     </div>
                     <button id="player-skill-btn" class="skill-btn" disabled>スキル</button>
                 </div>
+                <div class="extra-actions-container">
+                    <button id="player-shake-btn" class="shake-btn" title="盤面をシャッフルする(Shiftキー)">
+                        🫨 シャッフル <span id="player-shake-count" class="shake-count">(残:3)</span>
+                    </button>
+                </div>
 
             </div>
 
@@ -257,6 +263,9 @@
                     </div>
                     <div class="cpu-skill-status">AUTO</div>
                 </div>
+                <div class="extra-actions-container">
+                    <div class="cpu-shake-status">🫨 シャッフル <span id="cpu-shake-count" class="shake-count">(残:3)</span></div>
+                </div>
             </div>
         </main>
 
@@ -270,8 +279,8 @@
 
         <footer>
             <div class="controls">
-                <p>💻 PC操作: [←][→] 移動 / [↑] 回転 / [↓] 高速落下 / [Space] スキル</p>
-                <p>📱 スマホ操作: 画面のボタンをタップ！</p>
+                <p>💻 PC操作: [WASD] または [←][→] 移動 / [W] または [クリック] 回転 / [S] または [↓] 高速落下 / [Space] スキル / [Shift] シャッフル</p>
+                <p>📱 スマホ操作: 画面のボタンをタップ、盤面タップで回転！</p>
             </div>
         </footer>
 

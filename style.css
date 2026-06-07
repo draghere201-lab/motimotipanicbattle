@@ -1586,3 +1586,83 @@ footer.battle-footer, footer {
         padding: 0.6rem 0.4rem;
     }
 }
+
+/* ============================================
+   Score Animation & Shake Button
+   ============================================ */
+.score-board span {
+    display: inline-block;
+    transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), color 0.2s ease;
+}
+
+.score-board span.pop {
+    transform: scale(1.6);
+    color: #ffd400;
+    text-shadow: 0 0 10px #ff8c00;
+}
+
+.extra-actions-container {
+    display: flex;
+    justify-content: center;
+    margin-top: 4px;
+}
+
+.shake-btn {
+    background: linear-gradient(180deg, #ff9a9e 0%, #fecfef 99%, #fecfef 100%);
+    border: 2px solid #ff758c;
+    border-radius: 12px;
+    padding: 6px 12px;
+    font-family: var(--font-jp);
+    font-size: 0.85rem;
+    color: #d11a2a;
+    cursor: pointer;
+    box-shadow: 0 4px 0 #ff758c;
+    transition: all 0.1s ease;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.shake-btn:hover {
+    transform: translateY(2px);
+    box-shadow: 0 2px 0 #ff758c;
+}
+
+.shake-btn:active {
+    transform: translateY(4px);
+    box-shadow: none;
+}
+
+.shake-btn:disabled {
+    background: #e0e0e0;
+    border-color: #a0a0a0;
+    color: #888;
+    box-shadow: 0 4px 0 #a0a0a0;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.shake-count {
+    font-size: 0.75rem;
+    color: #fff;
+    background: #ff758c;
+    padding: 2px 6px;
+    border-radius: 8px;
+    font-weight: bold;
+}
+
+.cpu-shake-status {
+    font-family: var(--font-jp);
+    font-size: 0.85rem;
+    color: #888;
+    background: #f0f0f0;
+    border: 2px solid #ddd;
+    border-radius: 12px;
+    padding: 6px 12px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.cpu-shake-status .shake-count {
+    background: #ccc;
+}
