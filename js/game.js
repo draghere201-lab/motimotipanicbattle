@@ -701,7 +701,8 @@ class GameBoard {
 
         this.score        = 0;
         this.skillGauge   = 0;
-        this.ojyamaPool   = 0;
+        this.readyOjyama  = 0;
+        this.pendingOjyama = 0;
         this.nextSet      = this._generatePieceSet();
         this.activePiece  = null;
         
@@ -715,6 +716,11 @@ class GameBoard {
         this.totalClearedThisTurn = 0;
         this.hasDroppedOjyamaThisTurn = false;
         this.lastLockTime         = 0; // 最後にコマが設置された時刻
+        this.sentOjyamaThisTurn   = 0; // 重複送信防止
+        this.shakeCount           = 3; // シェイク可能回数
+
+        this.isLeftPressed  = false;
+        this.isRightPressed = false;
 
         this.cpuTimer      = null;
         this.cpuSkillTimer = null;
@@ -933,7 +939,7 @@ class GameBoard {
                             if (this.hasDroppedOjyamaThisTurn) {
                                 this.hasDroppedOjyamaThisTurn = false;
                                 this.spawnNextPiece();
-                            } else if (this.ojyamaPool > 0) {
+                            } else if (this.readyOjyama > 0) {
                                 this.hasDroppedOjyamaThisTurn = true;
                                 this._dropOjyama();
                             } else {
@@ -983,7 +989,14 @@ class GameBoard {
     }
 
     spawnNextPiece() {
-        if (!this.gameStarted || this.gameManager.isGameOver || this.activePiece || this.isNetwork) return;
+        if (!this.gameStarted || this.gameManager.isGameOver) return;
+        
+        // 猶予スピキ（予告）を落下準備完了状態に移行
+        if (this.pendingOjyama > 0) {
+            this.readyOjyama += this.pendingOjyama;
+            this.pendingOjyama = 0;
+            this._updateOjyamaUI();
+        }
 
         const set = this.nextSet;
         this.nextSet = this._generatePieceSet();
@@ -1024,6 +1037,21 @@ class GameBoard {
 
     _updateActivePiece() {
         if (!this.activePiece) return;
+
+        // キー入力によるスルスル（滑らか）横移動
+        const moveSpeed = 6;
+        if (this.isLeftPressed) {
+            if (!this._checkCollision(this.activePiece.x - moveSpeed, this.activePiece.y)) {
+                this.activePiece.x -= moveSpeed;
+                this.lockDelay = 0;
+            }
+        }
+        if (this.isRightPressed) {
+            if (!this._checkCollision(this.activePiece.x + moveSpeed, this.activePiece.y)) {
+                this.activePiece.x += moveSpeed;
+                this.lockDelay = 0;
+            }
+        }
 
         // 高速落下の処理
         const dropSpeed = this.isFastDropping ? CONFIG.GAME.DROP_SPEED * 15 : CONFIG.GAME.DROP_SPEED;
@@ -1208,6 +1236,27 @@ class GameBoard {
                 this.activePiece.bodies[i].ry = oldBodies[i].ry;
             }
         }
+    }
+
+    shakeBoard() {
+        if (this.shakeCount <= 0 || !this.gameStarted || this.gameManager.isGameOver) return;
+        this.shakeCount--;
+        
+        const btn = document.getElementById(`${this.id}-shake-btn`);
+        const countSpan = document.getElementById(`${this.id}-shake-count`);
+        if (countSpan) countSpan.innerText = `(残:${this.shakeCount})`;
+        if (btn && this.shakeCount <= 0) btn.disabled = true;
+
+        sounds.playSkill();
+        
+        // 静止していない全てのコマを上に跳ねさせる
+        const bodies = this.world.bodies.filter(b => !b.isStatic && !b.isActivePiece);
+        bodies.forEach(b => {
+            Body.setVelocity(b, { 
+                x: (Math.random() - 0.5) * 8, 
+                y: -12 - Math.random() * 8 
+            });
+        });
     }
 
     /* ---- 連結コマ結合描画 ---- */
@@ -1449,10 +1498,11 @@ class GameBoard {
         this.chainTimeLeft = 0;
         this.chainCount = 0;
         this.totalClearedThisTurn = 0;
+        this.sentOjyamaThisTurn = 0; // 重複送信の防止リセット
         this._updateChainGaugeUI();
         
-        // チェインが途切れた時、かつアクティブなコマが無く、お邪魔ストックがある場合は即座に落とすフラグを立てる
-        if (this.ojyamaPool > 0 && !this.activePiece && !this.isProcessing) {
+        // チェインが切れた際、落下準備完了スピキがあれば落下させる
+        if (this.readyOjyama > 0 && !this.activePiece && !this.isProcessing) {
             this._dropOjyama();
         }
     }
@@ -1463,7 +1513,12 @@ class GameBoard {
         const ojyamaCount = bodies.filter(b => b.label === 'ojyama').length;
 
         this.score += normalCount * 10 + ojyamaCount * 5;
-        if (this.scoreElement) this.scoreElement.innerText = this.score;
+        if (this.scoreElement) {
+            this.scoreElement.innerText = this.score;
+            this.scoreElement.classList.remove('pop');
+            void this.scoreElement.offsetWidth; // アニメーション再トリガー
+            this.scoreElement.classList.add('pop');
+        }
 
         this.skillGauge = Math.min(CONFIG.GAME.SKILL_MAX, this.skillGauge + normalCount * 4);
         this._updateSkillGaugeUI();
@@ -1488,31 +1543,44 @@ class GameBoard {
         if (this.chainCount >= 2)
             count += (this.chainCount - 1) * 3;
             
-        if (count > 0) {
-            if (this.ojyamaPool > 0) {
-                if (count >= this.ojyamaPool) {
-                    count -= this.ojyamaPool;
-                    this.ojyamaPool = 0;
+        // これまでに送信した分を引き算して差分のみを送信（重複バグ修正）
+        let newOjyama = count - this.sentOjyamaThisTurn;
+        
+        if (newOjyama > 0) {
+            this.sentOjyamaThisTurn += newOjyama;
+            let totalPool = this.readyOjyama + this.pendingOjyama;
+            if (totalPool > 0) {
+                if (newOjyama >= totalPool) {
+                    newOjyama -= totalPool;
+                    this.readyOjyama = 0;
+                    this.pendingOjyama = 0;
                 } else {
-                    this.ojyamaPool -= count;
-                    count = 0;
+                    if (newOjyama >= this.readyOjyama) {
+                        newOjyama -= this.readyOjyama;
+                        this.readyOjyama = 0;
+                        this.pendingOjyama -= newOjyama;
+                        newOjyama = 0;
+                    } else {
+                        this.readyOjyama -= newOjyama;
+                        newOjyama = 0;
+                    }
                 }
                 this._updateOjyamaUI();
             }
-            if (count > 0 && this.opponentBoard) {
+            if (newOjyama > 0 && this.opponentBoard) {
                 if (this.gameManager.gameMode === 'online') {
                     // オンライン対戦時はネットワーク経由で攻撃を送る
-                    net.send({ type: 'attack', count: count });
+                    net.send({ type: 'attack', count: newOjyama });
                 } else {
                     // CPU戦時は直接相手の盤面を操作する
-                    this.opponentBoard.receiveOjyama(count);
+                    this.opponentBoard.receiveOjyama(newOjyama);
                 }
             }
         }
     }
 
     receiveOjyama(count) {
-        this.ojyamaPool += count;
+        this.pendingOjyama += count;
         this._updateOjyamaUI();
     }
 
@@ -1520,8 +1588,8 @@ class GameBoard {
         this.isDroppingOjyama = true;
         this.isProcessing = true;
 
-        const drop = Math.min(5, this.ojyamaPool);
-        this.ojyamaPool -= drop;
+        const drop = Math.min(5, this.readyOjyama);
+        this.readyOjyama -= drop;
         this._updateOjyamaUI();
 
         const ps = CONFIG.GAME.PUYO_SIZE;
@@ -1751,7 +1819,7 @@ class GameBoard {
         if (!this.ojyamaElement) return;
         this.ojyamaElement.innerHTML = '';
         
-        let remaining = this.ojyamaPool;
+        let remaining = this.readyOjyama + this.pendingOjyama;
         
         while (remaining >= 30) {
             this._createOjyamaIcon('supiki-30');
@@ -1848,6 +1916,7 @@ class MotiMotiPanicBattle {
 
     _initTitleScreen() {
         const btnStartScoreAttack = document.getElementById('btn-start-scoreattack');
+        const btnStartScoreAttack180 = document.getElementById('btn-start-scoreattack-180');
         const btnStartSingle = document.getElementById('btn-start-single');
         const btnStartOnline = document.getElementById('btn-start-online');
         const btnHowto = document.getElementById('btn-howto');
@@ -1856,6 +1925,12 @@ class MotiMotiPanicBattle {
 
         if (btnStartScoreAttack) btnStartScoreAttack.addEventListener('click', () => {
             this.gameMode = 'scoreAttack';
+            this.scoreAttackTime = 90;
+            showScreen('screen-select');
+        });
+        if (btnStartScoreAttack180) btnStartScoreAttack180.addEventListener('click', () => {
+            this.gameMode = 'scoreAttack';
+            this.scoreAttackTime = 180;
             showScreen('screen-select');
         });
         if (btnStartSingle) btnStartSingle.addEventListener('click', () => {
@@ -2109,7 +2184,9 @@ class MotiMotiPanicBattle {
                 if (this.cpuBoard.scoreElement) this.cpuBoard.scoreElement.innerText = this.cpuBoard.score;
             }
             if (data.ojyama !== undefined) {
-                this.cpuBoard.ojyamaPool = data.ojyama;
+                // ネットワークからの同期データはすべて ready 扱いとして表示
+                this.cpuBoard.readyOjyama = data.ojyama;
+                this.cpuBoard.pendingOjyama = 0;
                 this.cpuBoard._updateOjyamaUI();
             }
             if (data.skill !== undefined) {
@@ -2222,7 +2299,7 @@ class MotiMotiPanicBattle {
                         this.cpuBoard.startCpuAI();
                     } else if (this.gameMode === 'scoreAttack') {
                         // スコアアタック用のメインタイマー開始
-                        this._startMainTimer(90);
+                        this._startMainTimer(this.scoreAttackTime || 90);
                     }
                 });
 
@@ -2292,39 +2369,92 @@ class MotiMotiPanicBattle {
     }
 
     _initBattleEvents() {
-        const onKey = (e) => {
+        const onKeyDown = (e) => {
             if (this.isGameOver || !this.playerBoard) return;
             switch(e.code) {
-                case 'ArrowLeft':  e.preventDefault(); this.playerBoard.moveLeft(); break;
-                case 'ArrowRight': e.preventDefault(); this.playerBoard.moveRight(); break;
-                case 'ArrowUp':    
+                case 'ArrowLeft':
+                case 'KeyA':       e.preventDefault(); this.playerBoard.isLeftPressed = true; break;
+                case 'ArrowRight':
+                case 'KeyD':       e.preventDefault(); this.playerBoard.isRightPressed = true; break;
+                case 'ArrowUp':
+                case 'KeyW':
                 case 'KeyZ':
                 case 'KeyX':       e.preventDefault(); this.playerBoard.rotate(); break;
-                case 'ArrowDown':  e.preventDefault(); this.playerBoard.fastDrop(); break;
-                case 'Space':      
+                case 'ArrowDown':
+                case 'KeyS':       e.preventDefault(); this.playerBoard.fastDrop(); break;
+                case 'Space':
                     e.preventDefault(); 
                     if (document.activeElement.tagName !== 'BUTTON') this.playerBoard.useSkill(); 
                     break;
+                case 'ShiftLeft':
+                case 'ShiftRight':
+                    e.preventDefault();
+                    if (document.activeElement.tagName !== 'BUTTON') this.playerBoard.shakeBoard();
+                    break;
             }
         };
-        if (window._motiKey) window.removeEventListener('keydown', window._motiKey);
-        window._motiKey = onKey;
-        window.addEventListener('keydown', onKey);
 
-        const bindPad = (id, action) => {
-            const btn = document.getElementById(id);
-            if (!btn) return;
-            btn.onmousedown = (e) => { e.preventDefault(); action(); };
-            btn.ontouchstart = (e) => { e.preventDefault(); action(); };
+        const onKeyUp = (e) => {
+            if (this.isGameOver || !this.playerBoard) return;
+            switch(e.code) {
+                case 'ArrowLeft':
+                case 'KeyA':       e.preventDefault(); this.playerBoard.isLeftPressed = false; break;
+                case 'ArrowRight':
+                case 'KeyD':       e.preventDefault(); this.playerBoard.isRightPressed = false; break;
+            }
         };
 
-        bindPad('pad-left',   () => { if(this.playerBoard) this.playerBoard.moveLeft(); });
-        bindPad('pad-right',  () => { if(this.playerBoard) this.playerBoard.moveRight(); });
+        if (window._motiKeyDown) window.removeEventListener('keydown', window._motiKeyDown);
+        if (window._motiKeyUp) window.removeEventListener('keyup', window._motiKeyUp);
+        
+        // Remove the old listener if it exists
+        if (window._motiKey) window.removeEventListener('keydown', window._motiKey);
+
+        window._motiKeyDown = onKeyDown;
+        window._motiKeyUp = onKeyUp;
+        window.addEventListener('keydown', onKeyDown);
+        window.addEventListener('keyup', onKeyUp);
+
+        const bindPad = (id, actionDown, actionUp) => {
+            const btn = document.getElementById(id);
+            if (!btn) return;
+            btn.onmousedown = (e) => { e.preventDefault(); actionDown(); };
+            btn.ontouchstart = (e) => { e.preventDefault(); actionDown(); };
+            if (actionUp) {
+                btn.onmouseup = (e) => { e.preventDefault(); actionUp(); };
+                btn.onmouseleave = (e) => { e.preventDefault(); actionUp(); };
+                btn.ontouchend = (e) => { e.preventDefault(); actionUp(); };
+            }
+        };
+
+        bindPad('pad-left',   
+            () => { if(this.playerBoard) this.playerBoard.isLeftPressed = true; },
+            () => { if(this.playerBoard) this.playerBoard.isLeftPressed = false; }
+        );
+        bindPad('pad-right',  
+            () => { if(this.playerBoard) this.playerBoard.isRightPressed = true; },
+            () => { if(this.playerBoard) this.playerBoard.isRightPressed = false; }
+        );
         bindPad('pad-rotate', () => { if(this.playerBoard) this.playerBoard.rotate(); });
         bindPad('pad-down',   () => { if(this.playerBoard) this.playerBoard.fastDrop(); });
 
         const skillBtn = document.getElementById('player-skill-btn');
         if (skillBtn) skillBtn.onclick = () => { if (this.playerBoard) this.playerBoard.useSkill(); };
+
+        const shakeBtn = document.getElementById('player-shake-btn');
+        if (shakeBtn) shakeBtn.onclick = () => { if (this.playerBoard) this.playerBoard.shakeBoard(); };
+
+        const playerCanvas = document.getElementById('player-canvas');
+        if (playerCanvas) {
+            playerCanvas.onmousedown = (e) => {
+                e.preventDefault();
+                if (this.playerBoard) this.playerBoard.rotate();
+            };
+            playerCanvas.ontouchstart = (e) => {
+                e.preventDefault();
+                if (this.playerBoard) this.playerBoard.rotate();
+            };
+        }
 
         const btnQuit = document.getElementById('btn-quit');
         if (btnQuit) {
