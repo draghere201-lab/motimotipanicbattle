@@ -270,17 +270,71 @@ body {
 
 .howto-modal h2, .settings-modal h2 {
     color: var(--accent-pink);
-    margin-bottom: 1.5rem;
     font-size: 1.8rem;
     text-shadow: 2px 2px 0 #fff, -1px -1px 0 #fff;
+    margin-bottom: 1.5rem;
+}
+
+.howto-header-area {
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    gap: 15px;
+    margin-bottom: 1.5rem;
+}
+
+.howto-header-area h2 {
+    margin-bottom: 0;
+}
+
+.howto-deco-char {
+    position: absolute;
+    bottom: -15px;
+    height: 160px;
+    object-fit: contain;
+    z-index: 20; /* Overlap the modal border */
+    pointer-events: none;
+    filter: drop-shadow(0 4px 8px rgba(0,0,0,0.15));
+}
+
+.howto-deco-char.left {
+    left: -30px;
+    transform-origin: bottom right;
+    animation: peekCharLeft 3s ease-in-out infinite;
+}
+
+.howto-deco-char.right {
+    right: -30px;
+    transform-origin: bottom left;
+    animation: peekCharRight 3s ease-in-out infinite 0.5s;
+}
+
+@keyframes peekCharLeft {
+    0%, 100% { transform: rotate(-3deg) translateY(0); }
+    50% { transform: rotate(2deg) translateY(-5px); }
+}
+
+@keyframes peekCharRight {
+    0%, 100% { transform: rotate(3deg) translateY(0); }
+    50% { transform: rotate(-2deg) translateY(-5px); }
 }
 
 .howto-sections {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: 1.2rem;
     margin-bottom: 1.5rem;
     text-align: left;
+}
+
+.howto-section:first-child {
+    grid-column: 1 / -1;
+}
+
+@media (max-width: 600px) {
+    .howto-sections {
+        grid-template-columns: 1fr;
+    }
 }
 
 .howto-section h3 {
@@ -349,7 +403,16 @@ body {
     cursor: pointer;
 }
 
-.howto-modal { max-width: 520px; }
+.howto-modal {
+    position: relative;
+    max-width: 680px; 
+    padding-bottom: 2rem;
+    /* overflow: hidden; Removed so characters can peek out */
+}
+.howto-sections {
+    position: relative;
+    z-index: 10;
+}
 
 .howto-list {
     list-style: none;

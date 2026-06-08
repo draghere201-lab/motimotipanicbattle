@@ -57,29 +57,45 @@
         <!-- あそびかたポップアップ -->
         <div id="howto-overlay" class="overlay hidden">
             <div class="modal howto-modal">
-                <h2>🎮 あそびかた</h2>
+                <div class="howto-header-area">
+                    <h2>🎮 あそびかた</h2>
+                </div>
                 <div class="howto-sections">
                     <div class="howto-section">
                         <h3>📖 基本ルール</h3>
                         <ul class="howto-list">
                             <li>🔗 同じ色のコマを <strong>5個以上</strong> くっつけると消えるよ！</li>
                             <li>💥 連鎖や大量消しで相手に <strong>お邪魔（スピキ）</strong> を送ろう！</li>
-                            <li>🛡️ 予告スピキがある時にコマを消すと <strong>相殺</strong> できるよ！</li>
+                            <li>🛡️ 予告スピキがある時に消すと <strong>相殺</strong> できるよ！</li>
                             <li>⭐ コマを消してゲージを溜めると <strong>必殺スキル</strong> が使える！</li>
+                            <li>🫨 ピンチの時は <strong>盤面シャッフル</strong> (3回まで) でワンチャンス！</li>
                             <li>💀 コマが一番上の <strong>デッドライン</strong> を超えたら負け！</li>
                         </ul>
                     </div>
                     <div class="howto-section">
-                        <h3>🎮 操作方法</h3>
+                        <h3>💻 PCの操作方法</h3>
                         <ul class="howto-list">
-                            <li><strong>移動</strong>： [←] [→] キー、または 画面の左右ボタン</li>
-                            <li><strong>回転</strong>： [↑] [Z] [X] キー、または「回転」ボタン</li>
-                            <li><strong>高速落下</strong>： [↓] キー、または「↓」ボタン</li>
-                            <li><strong>スキル発動</strong>： [スペース] キー、または スキルボタン</li>
+                            <li><strong>移動</strong>： [WASD]キー または 矢印キー</li>
+                            <li><strong>回転</strong>： <strong>盤面をクリック</strong> または [W]/[↑]キー</li>
+                            <li><strong>高速落下</strong>： [S] または [↓]キー</li>
+                            <li><strong>スキル発動</strong>： [Space]キー</li>
+                            <li><strong>盤面シャッフル</strong>： [Shift]キー</li>
+                        </ul>
+                    </div>
+                    <div class="howto-section">
+                        <h3>📱 スマホの操作方法</h3>
+                        <ul class="howto-list">
+                            <li><strong>移動・落下</strong>： 画面下の操作ボタン</li>
+                            <li><strong>回転</strong>： <strong>盤面をタップ</strong> または 回転ボタン</li>
+                            <li><strong>スキル・シャッフル</strong>： それぞれの専用ボタン</li>
                         </ul>
                     </div>
                 </div>
-                <button id="btn-howto-close" class="btn btn-primary">とじる</button>
+                <button id="btn-howto-close" class="btn btn-primary" style="position: relative; z-index: 10;">わかった！</button>
+                
+                <!-- キャラクター装飾（下部接地） -->
+                <img src="assets/UI/komi-.png" alt="こみ" class="howto-deco-char left">
+                <img src="assets/UI/bata-.png" alt="ばた" class="howto-deco-char right">
             </div>
         </div>
 
