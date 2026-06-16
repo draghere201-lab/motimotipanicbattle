@@ -969,19 +969,18 @@ class GameBoard {
                 }
                 this._checkGameOver();
                 
-                // プレイヤーの座標データを送信 (軽量化のため2フレームに1回)
+                // プレイヤーの座標データを送信
                 if (this.id === 'player') {
                     this._syncFrameCount = (this._syncFrameCount || 0) + 1;
-                    if (this._syncFrameCount % 2 === 0) {
-                        net.send({
-                            type: 'sync',
-                            bodies: this._getSyncData(),
-                            score: this.score,
-                            ojyama: this.ojyamaPool,
-                            skill: this.skillGauge,
-                            next: this.nextSet.map(s => s.type.id)
-                        });
-                    }
+                    net.send({
+                        type: 'sync',
+                        bodies: this._getSyncData(),
+                        vfxEffects: this.vfxEffects,
+                        score: this.score,
+                        ojyama: this.ojyamaPool,
+                        skill: this.skillGauge,
+                        next: this.nextSet.map(s => s.type.id)
+                    });
                 }
             }
             this.draw();
@@ -1219,14 +1218,20 @@ class GameBoard {
         this.isFastDropping = true;
     }
 
-    rotate() {
+    rotate(direction = 1) {
         if (!this.activePiece) return;
 
         const oldBodies = this.activePiece.bodies.map(b => ({rx: b.rx, ry: b.ry}));
         
         this.activePiece.bodies.forEach(b => {
-            const newRx = -b.ry;
-            const newRy = b.rx;
+            let newRx, newRy;
+            if (direction === 1) {
+                newRx = -b.ry;
+                newRy = b.rx;
+            } else {
+                newRx = b.ry;
+                newRy = -b.rx;
+            }
             b.rx = newRx;
             b.ry = newRy;
         });
@@ -2016,8 +2021,8 @@ class GameBoard {
             fastDropRate = 0.1;
             skillDelay = 1000;
         } else if (difficulty === 'hard') {
-            thinkInterval = 150;
-            fastDropRate = 0.6;
+            thinkInterval = 80;
+            fastDropRate = 0.95;
             skillDelay = 200;
             dangerThreshold = CONFIG.GAME.HEIGHT * 0.4;
         }
@@ -2027,48 +2032,89 @@ class GameBoard {
             
             if (this.activePiece && this.activePiece.bodies && this.activePiece.bodies.length > 0) {
                 if (!this.cpuTargetX) {
-                    const any = this.world.bodies.filter(b => !b.isStatic && !b.isActivePiece && b.label !== 'ojyama');
+                    const normalBodies = this.world.bodies.filter(b => !b.isStatic && !b.isActivePiece && b.label !== 'ojyama');
                     
-                    if (difficulty === 'hard') {
-                        // Hardの場合は色が合う場所を優先的に狙う
-                        const activeColor = this.activePiece.bodies[0].label;
-                        const same = any.filter(b => b.label === activeColor);
-                        if (same.length > 0) {
-                            same.sort((a, b) => a.position.y - b.position.y);
-                            this.cpuTargetX = same[0].position.x;
+                    if (normalBodies.length < 6) {
+                        // 序盤のガタガタ防止：盤面のブロックが少ない場合は中央付近に落とす
+                        this.cpuTargetX = CONFIG.GAME.WIDTH / 2 + (Math.random() - 0.5) * 50;
+                    } else {
+                        if (difficulty === 'hard') {
+                            const cA = this.activePiece.bodies[0].label;
+                            const cB = this.activePiece.bodies[1].label;
+                            
+                            let bestScore = -1;
+                            let bestTarget = null;
+                            let targetColor = null;
+                            
+                            const ps = CONFIG.GAME.PUYO_SIZE;
+                            normalBodies.forEach(b => {
+                                if (b.label === cA || b.label === cB) {
+                                    // 距離が PUYO_SIZE*2.6 以内の同色コマを探す（簡易クラスタサイズ評価）
+                                    const friends = normalBodies.filter(f => f.label === b.label && 
+                                        Math.hypot(f.position.x - b.position.x, f.position.y - b.position.y) < ps * 2.6);
+                                    
+                                    const score = friends.length + (b.position.y / 100); // 塊が大きい＆下にあるほど優先
+                                    if (score > bestScore) {
+                                        bestScore = score;
+                                        bestTarget = b;
+                                        targetColor = b.label;
+                                    }
+                                }
+                            });
+                            
+                            if (bestTarget) {
+                                this.cpuTargetX = bestTarget.position.x;
+                                this.cpuTargetColor = targetColor;
+                            }
                         }
-                    }
-                    
-                    if (!this.cpuTargetX) {
-                        this.cpuTargetX = any.length > 0 
-                            ? any[Math.floor(Math.random()*any.length)].position.x 
-                            : Math.random() * (CONFIG.GAME.WIDTH - 100) + 50;
+                        
+                        if (!this.cpuTargetX) {
+                            this.cpuTargetX = normalBodies[Math.floor(Math.random()*normalBodies.length)].position.x;
+                        }
                     }
                 }
 
-                if (Math.random() < 0.3) this.rotate();
+                // Hardの場合は回転を制御して色を合わせる
+                if (difficulty === 'hard' && this.cpuTargetColor) {
+                    const b0 = this.activePiece.bodies[0];
+                    const b1 = this.activePiece.bodies[1];
+                    const bottomBody = b0.position.y > b1.position.y ? b0 : b1;
+                    if (bottomBody.label !== this.cpuTargetColor) {
+                        this.rotate(1); // ターゲットの色が下になるまで回転
+                    }
+                } else {
+                    if (Math.random() < 0.3) this.rotate(1);
+                }
+                const tolerance = CONFIG.GAME.PUYO_SIZE * 0.8;
+                const dx = this.cpuTargetX - this.activePiece.x;
                 
-                if (this.activePiece.x < this.cpuTargetX - 15) this.moveRight();
-                else if (this.activePiece.x > this.cpuTargetX + 15) this.moveLeft();
-                else {
-                    // 目標Xに到達した場合は高確率(または確定)で高速落下
+                if (Math.abs(dx) <= tolerance) {
                     if (difficulty === 'hard' || Math.random() < fastDropRate) {
                         this.fastDrop();
+                    }
+                } else {
+                    const prevX = this.activePiece.x;
+                    if (dx > 0) this.moveRight();
+                    else this.moveLeft();
+                    
+                    if (this.activePiece.x === prevX) {
+                        if (difficulty === 'hard' || Math.random() < fastDropRate) {
+                            this.fastDrop();
+                        }
                     }
                 }
             } else {
                 this.cpuTargetX = null;
             }
 
-            // Hardの場合はピンチ時にシャッフル（シェイク）を使う
+            // Hardの場合はピンチ時にシャッフルを使う
             if (difficulty === 'hard' && this.shakeCount > 0) {
-                const highestPuyo = this.world.bodies
-                    .filter(b => !b.isStatic && !b.isActivePiece)
-                    .reduce((minY, b) => Math.min(minY, b.position.y), CONFIG.GAME.HEIGHT);
+                const normalBodies = this.world.bodies.filter(b => !b.isStatic && !b.isActivePiece);
+                const highestPuyo = normalBodies.reduce((minY, b) => Math.min(minY, b.position.y), CONFIG.GAME.HEIGHT);
                 
-                // お邪魔の予告がたくさんあるか、積まれている高さが高い場合
-                if (highestPuyo < dangerThreshold || (this.readyOjyama + this.pendingOjyama) > 15) {
-                    if (Math.random() < 0.05) {
+                // コマがある程度（20個以上）積まれている、かつ危険水域（高さ40%以上）に達しているか、予告が大量にある場合
+                if ((normalBodies.length > 20 && highestPuyo < dangerThreshold) || (this.readyOjyama + this.pendingOjyama) > 15) {
+                    if (Math.random() < 0.01) { // 頻度を下げる
                         this.shakeBoard();
                     }
                 }
@@ -2567,6 +2613,10 @@ class MotiMotiPanicBattle {
                 });
             }
             
+            if (data.vfxEffects !== undefined) {
+                this.cpuBoard.vfxEffects = data.vfxEffects;
+            }
+            
             // 物理演算を行わない代わりに、データ受信時に再描画を行う
             this.cpuBoard.draw();
             
@@ -2581,6 +2631,26 @@ class MotiMotiPanicBattle {
             this.cpuBoard._showCutIn();
             sounds.playSkill();
             if (this.oppChar) voice.playSkillVoice(this.oppChar.name);
+        } else if (data.type === 'rematch') {
+            // 相手が再戦を希望した
+            this.oppReady = true;
+            this._checkBothReadyForRematch();
+        }
+    }
+
+    _checkBothReadyForRematch() {
+        if (this.myReady && this.oppReady) {
+            // 両方とも再戦希望
+            document.getElementById('result-overlay').classList.add('hidden');
+            const restartBtn = document.getElementById('restart-btn');
+            if (restartBtn) {
+                restartBtn.disabled = false;
+                restartBtn.innerText = 'もう一度探す'; // デフォルトに戻す
+            }
+            this.myReady = false;
+            this.oppReady = false;
+            // そのまま再戦開始
+            this._startGame(this.myChar, this.oppChar);
         }
     }
 
@@ -2740,8 +2810,8 @@ class MotiMotiPanicBattle {
                 case 'KeyD':       e.preventDefault(); this.playerBoard.isRightPressed = true; break;
                 case 'ArrowUp':
                 case 'KeyW':
-                case 'KeyZ':
-                case 'KeyX':       e.preventDefault(); this.playerBoard.rotate(); break;
+                case 'KeyX':       e.preventDefault(); this.playerBoard.rotate(1); break;
+                case 'KeyZ':       e.preventDefault(); this.playerBoard.rotate(-1); break;
                 case 'ArrowDown':
                 case 'KeyS':       e.preventDefault(); this.playerBoard.fastDrop(); break;
                 case 'Space':
@@ -2797,7 +2867,8 @@ class MotiMotiPanicBattle {
             () => { if(this.playerBoard) this.playerBoard.isRightPressed = true; },
             () => { if(this.playerBoard) this.playerBoard.isRightPressed = false; }
         );
-        bindPad('pad-rotate', () => { if(this.playerBoard) this.playerBoard.rotate(); });
+        bindPad('pad-rotate-left', () => { if(this.playerBoard) this.playerBoard.rotate(-1); });
+        bindPad('pad-rotate-right', () => { if(this.playerBoard) this.playerBoard.rotate(1); });
         bindPad('pad-down',   () => { if(this.playerBoard) this.playerBoard.fastDrop(); });
 
         const skillBtn = document.getElementById('player-skill-btn');
@@ -2808,14 +2879,25 @@ class MotiMotiPanicBattle {
 
         const playerCanvas = document.getElementById('player-canvas');
         if (playerCanvas) {
-            playerCanvas.onmousedown = (e) => {
+            const handleCanvasTap = (e) => {
                 e.preventDefault();
-                if (this.playerBoard) this.playerBoard.rotate();
+                if (!this.playerBoard) return;
+                let clientX = 0;
+                if (e.touches && e.touches.length > 0) {
+                    clientX = e.touches[0].clientX;
+                } else {
+                    clientX = e.clientX;
+                }
+                const rect = playerCanvas.getBoundingClientRect();
+                const x = clientX - rect.left;
+                if (x < rect.width / 2) {
+                    this.playerBoard.rotate(-1);
+                } else {
+                    this.playerBoard.rotate(1);
+                }
             };
-            playerCanvas.ontouchstart = (e) => {
-                e.preventDefault();
-                if (this.playerBoard) this.playerBoard.rotate();
-            };
+            playerCanvas.onmousedown = handleCanvasTap;
+            playerCanvas.ontouchstart = handleCanvasTap;
         }
 
         const btnQuit = document.getElementById('btn-quit');
@@ -2833,11 +2915,14 @@ class MotiMotiPanicBattle {
     _initResultScreen() {
         const restartBtn = document.getElementById('restart-btn');
         if (restartBtn) restartBtn.onclick = () => {
-            document.getElementById('result-overlay').classList.add('hidden');
             if (this.gameMode === 'online') {
-                // オンラインの場合は再戦ボタンを隠すか、またはタイトルに戻らせるか。今回はもう一度を押したらキャラ選択へ戻る。
-                this._backToSelect();
+                restartBtn.innerText = '相手を待っています...';
+                restartBtn.disabled = true;
+                net.send({ type: 'rematch' });
+                this.myReady = true;
+                this._checkBothReadyForRematch();
             } else {
+                document.getElementById('result-overlay').classList.add('hidden');
                 if (this.playerBoard) this._startGame(this.playerBoard.character);
             }
         };
