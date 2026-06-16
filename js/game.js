@@ -27,12 +27,22 @@ const CONFIG = {
         {
             id: 'elfin', name: 'エルフィン', skill: '魔弾の暴走',
             description: 'フィールド上のランダムなコマを緑に変える！大量連鎖のチャンス！',
-            image: 'assets/char/エルフィン.png', color: '#39ff14'
+            image: 'assets/char/エルフィン.png', color: '#39ff14', skillRate: 4
         },
         {
             id: 'velita', name: 'ベリータ', skill: 'ディメンションバースト',
             description: '数カ所を爆破し、範囲内のコマを一斉に消去！ピンチ脱出に最適！',
-            image: 'assets/char/ベリータ.png', color: '#bd00ff'
+            image: 'assets/char/ベリータ.png', color: '#bd00ff', skillRate: 4
+        },
+        { 
+            id: 'erena', name: 'エレナ', skill: 'DーCATふみふみ', 
+            description: '猫が通った場所のコマを水色に変える！', 
+            image: 'assets/char/エレナ.png', color: '#00f5ff', skillRate: 2
+        },
+        { 
+            id: 'syeidy', name: 'シェイディ', skill: 'ディメンション・スライド', 
+            description: 'フィールド下部のコマをワームホールで上部にワープさせる！', 
+            image: 'assets/char/シェイディ.png', color: '#1e90ff', skillRate: 5
         }
     ]
 };
@@ -77,6 +87,10 @@ function preloadImages(callback) {
     Object.keys(CONFIG.COLORS).forEach(k => {
         sources[CONFIG.COLORS[k].id] = CONFIG.COLORS[k].image;
     });
+    
+    // エフェクト用の画像もプリロードに含める
+    sources['effects_erena'] = 'assets/effects/erena_skill.png';
+    sources['effects_syeidy'] = 'assets/effects/syeidy_skill.png';
 
     const total = Object.keys(sources).length;
     if (total === 0) {
@@ -94,7 +108,7 @@ function preloadImages(callback) {
         };
         img.onerror = () => {
             console.error("Failed to load image: " + sources[id]);
-            imageCache[id] = new Image();
+            imageCache[id] = new Image(); // 空で代用
             loaded++;
             if (loaded === total && callback) callback();
         };
@@ -1390,11 +1404,12 @@ class GameBoard {
         const now = Date.now();
         this.vfxEffects = this.vfxEffects.filter(eff => {
             const elapsed = now - eff.startTime;
+            if (elapsed < 0) return true; // まだ開始時間になっていない場合はスキップして保持
             if (elapsed > eff.duration) return false;
             
             const progress = elapsed / eff.duration; // 0.0 ~ 1.0
             ctx.save();
-            ctx.translate(eff.x, eff.y);
+            ctx.translate(eff.x || 0, eff.y || 0);
             
             if (eff.type === 'marker') {
                 // ワインレッドのマーカー（集束していく円）
@@ -1435,6 +1450,80 @@ class GameBoard {
                 ctx.arc(0, 0, r, 0, Math.PI * 2);
                 ctx.fillStyle = `rgba(100, 255, 100, ${1 - progress})`;
                 ctx.fill();
+            } else if (eff.type === 'magic_missile') {
+                // 魔法の射出エフェクト (2次ベジェ曲線)
+                ctx.globalCompositeOperation = 'lighter';
+                
+                const t = progress;
+                const invT = 1 - t;
+                const currentX = invT * invT * eff.startX + 2 * invT * t * eff.controlX + t * t * eff.endX;
+                const currentY = invT * invT * eff.startY + 2 * invT * t * eff.controlY + t * t * eff.endY;
+                
+                // 軌跡の描画 (startXから現在地までのベジェ曲線)
+                ctx.beginPath();
+                ctx.moveTo(eff.startX, eff.startY);
+                const cpX = eff.startX + (eff.controlX - eff.startX) * t;
+                const cpY = eff.startY + (eff.controlY - eff.startY) * t;
+                ctx.quadraticCurveTo(cpX, cpY, currentX, currentY);
+                
+                ctx.strokeStyle = eff.color;
+                ctx.lineWidth = 15 * (1 - progress);
+                ctx.stroke();
+                
+                // 弾の頭
+                ctx.beginPath();
+                ctx.arc(currentX, currentY, 12, 0, Math.PI * 2);
+                ctx.fillStyle = '#ffffff';
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(currentX, currentY, 24, 0, Math.PI * 2);
+                ctx.fillStyle = eff.color;
+                ctx.globalAlpha = 0.5;
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
+            } else if (eff.type === 'apng_move') {
+                // APNGエフェクトの移動描画（ブラウザがCanvasでのAPNG対応なら動く）
+                const currentX = eff.startX + (eff.endX - eff.startX) * progress;
+                const currentY = eff.startY + (eff.endY - eff.startY) * progress;
+                const img = imageCache[eff.srcId];
+                if (img) {
+                    ctx.drawImage(img, -eff.size/2, -eff.size/2, eff.size, eff.size);
+                } else {
+                    // フォールバック
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 50, 0, Math.PI * 2);
+                    ctx.fillStyle = '#00f5ff';
+                    ctx.fill();
+                }
+            } else if (eff.type === 'apng_static') {
+                // APNGエフェクトの静止描画
+                const img = imageCache[eff.srcId];
+                if (img) {
+                    // 出現と消失のフェード
+                    let alpha = 1;
+                    if (progress < 0.2) alpha = progress * 5;
+                    else if (progress > 0.8) alpha = (1 - progress) * 5;
+                    ctx.globalAlpha = alpha;
+                    
+                    let scaleY = 1.0;
+                    if (eff.animType === 'portal') {
+                        // 潰れている状態からグワッと広がる
+                        if (progress < 0.15) {
+                            scaleY = progress / 0.15;
+                        }
+                    }
+                    
+                    if (scaleY !== 1.0) {
+                        ctx.scale(1, scaleY);
+                    }
+                    ctx.drawImage(img, -eff.size/2, -eff.size/2, eff.size, eff.size);
+                    ctx.globalAlpha = 1.0;
+                } else {
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 80, 0, Math.PI * 2);
+                    ctx.fillStyle = '#1e90ff';
+                    ctx.fill();
+                }
             }
             
             ctx.restore();
@@ -1522,7 +1611,7 @@ class GameBoard {
             this.scoreElement.classList.add('pop');
         }
 
-        this.skillGauge = Math.min(CONFIG.GAME.SKILL_MAX, this.skillGauge + normalCount * 4);
+        this.skillGauge = Math.min(CONFIG.GAME.SKILL_MAX, this.skillGauge + normalCount * (this.character.skillRate || 4));
         this._updateSkillGaugeUI();
 
         let frame = 0;
@@ -1646,16 +1735,31 @@ class GameBoard {
                     .sort(() => 0.5 - Math.random());
                 const count = Math.max(3, Math.min(targets.length, Math.ceil(targets.length * 0.4)));
                 
-                // 1. 対象を光らせる（タメ演出）
+                // 1. 弾の飛来演出
                 for (let i = 0; i < count; i++) {
-                    targets[i].isSkillTarget = true;
-                    targets[i].skillTimer = Date.now();
+                    const tx = targets[i].position.x;
+                    const ty = targets[i].position.y;
+                    
+                    const startX = tx + (Math.random() - 0.5) * 500;
+                    const startY = -250;
+
+                    this.vfxEffects.push({
+                        type: 'magic_missile',
+                        startX: startX,
+                        startY: startY,
+                        endX: tx,
+                        endY: ty,
+                        controlX: startX + (tx - startX) / 2 + (Math.random() - 0.5) * 300,
+                        controlY: startY + (ty - startY) / 2 - 150,
+                        startTime: Date.now() + i * 100,
+                        duration: 600,
+                        color: 'rgba(50, 255, 100, 1)'
+                    });
                 }
 
-                // 2. 1.2秒後に変化とフラッシュエフェクト
+                // 2. 着弾後に変化とフラッシュ
                 setTimeout(() => {
                     for (let i = 0; i < count; i++) {
-                        targets[i].isSkillTarget = false;
                         targets[i].label = targetColor.id;
                         targets[i].render.sprite.texture = targetColor.image;
                         
@@ -1667,14 +1771,14 @@ class GameBoard {
                             duration: 500
                         });
                     }
+                    this._resolveOverlaps();
                     this.isProcessing = false;
-                }, 1200);
+                }, 600 + (count - 1) * 100);
 
             } else if (this.character.id === 'velita') {
                 const toRemove = new Set();
                 const points = [];
                 const targetBodies = this.world.bodies.filter(b => !b.isStatic && !b.isActivePiece);
-                // 存在するコマの中からランダムに候補を選ぶ
                 let candidates = [...targetBodies].sort(() => 0.5 - Math.random());
                 
                 for (let i = 0; i < 3; i++) {
@@ -1684,25 +1788,30 @@ class GameBoard {
                         rx = target.position.x;
                         ry = target.position.y;
                     } else {
-                        // コマが一つもない場合はランダムな場所
                         rx = Math.random() * (CONFIG.GAME.WIDTH  - 100) + 50;
                         ry = Math.random() * (CONFIG.GAME.HEIGHT - 180) + 120;
                     }
                     points.push({ x: rx, y: ry });
                     this.logic.getBodiesInRadius(rx, ry, 70).forEach(b => toRemove.add(b));
                     
-                    // 1. 爆発マーカー（タメ演出）を配置
+                    const startX = rx + (Math.random() - 0.5) * 500;
+                    const startY = -250;
+
                     this.vfxEffects.push({
-                        type: 'marker',
-                        x: rx,
-                        y: ry,
-                        startTime: Date.now(),
-                        duration: 800,
-                        color: 'rgba(150, 0, 50, 0.6)'
+                        type: 'magic_missile',
+                        startX: startX,
+                        startY: startY,
+                        endX: rx,
+                        endY: ry,
+                        controlX: startX + (rx - startX) / 2 + (Math.random() - 0.5) * 300,
+                        controlY: startY + (ry - startY) / 2 - 150,
+                        startTime: Date.now() + i * 150,
+                        duration: 500,
+                        color: 'rgba(255, 50, 100, 1)'
                     });
                 }
                 
-                // 2. タメの後に爆発と消去
+                // 2. 着弾後に爆発と消去
                 setTimeout(() => {
                     points.forEach(p => {
                         this.vfxEffects.push({
@@ -1720,7 +1829,146 @@ class GameBoard {
                     } else {
                         this.isProcessing = false;
                     }
-                }, 800);
+                }, 500 + 2 * 150);
+            } else if (this.character.id === 'erena') {
+                const targetColor = CONFIG.COLORS.BLUE;
+                const catDuration = 1800;
+                const steps = 3; // 3ふみふみに変更
+                const interval = catDuration / steps;
+                
+                // ペタペタとスタンプを押していくように複数回描画
+                for (let i = 0; i < steps; i++) {
+                    setTimeout(() => {
+                        // 下から上へジグザグに進む
+                        const progress = i / (steps - 1); // 0.0 ~ 1.0 (steps=3なら 0, 0.5, 1)
+                        const baseY = CONFIG.GAME.HEIGHT * 0.8 - (CONFIG.GAME.HEIGHT * 0.45 * progress);
+                        const sign = (i % 2 === 0) ? 1 : -1;
+                        const x = (CONFIG.GAME.WIDTH / 2) + (sign * 70) + (Math.random() * 30 - 15);
+                        const y = baseY + (Math.random() * 30 - 15);
+                        
+                        this.vfxEffects.push({
+                            type: 'apng_static',
+                            srcId: 'effects_erena',
+                            x: x,
+                            y: y,
+                            startTime: Date.now(),
+                            duration: 700, // 少し表示してすぐ消える
+                            size: 160
+                        });
+                        
+                        // スタンプした周辺（半径100以内）のコマを変換
+                        const targets = this.world.bodies.filter(b => !b.isStatic && !b.isActivePiece && b.label !== 'ojyama' && b.label !== targetColor.id);
+                        targets.forEach(b => {
+                            const dx = b.position.x - x;
+                            const dy = b.position.y - y;
+                            if (dx*dx + dy*dy < 100*100) {
+                                b.label = targetColor.id;
+                                b.render.sprite.texture = targetColor.image;
+                                this.vfxEffects.push({
+                                    type: 'flash',
+                                    x: b.position.x,
+                                    y: b.position.y,
+                                    startTime: Date.now(),
+                                    duration: 400
+                                });
+                            }
+                        });
+                    }, i * interval);
+                }
+
+                setTimeout(() => {
+                    this.isProcessing = false;
+                }, catDuration + 700);
+
+            } else if (this.character.id === 'syeidy') {
+                const portalDuration = 1800;
+                
+                const portalX = CONFIG.GAME.WIDTH / 2;
+                const bottomPortalY = CONFIG.GAME.HEIGHT - 100;
+                const topPortalY = 100;
+
+                this.vfxEffects.push({
+                    type: 'apng_static',
+                    animType: 'portal',
+                    srcId: 'effects_syeidy',
+                    x: portalX,
+                    y: bottomPortalY,
+                    startTime: Date.now(),
+                    duration: portalDuration,
+                    size: 280
+                });
+                
+                this.vfxEffects.push({
+                    type: 'apng_static',
+                    animType: 'portal',
+                    srcId: 'effects_syeidy',
+                    x: portalX,
+                    y: topPortalY,
+                    startTime: Date.now(),
+                    duration: portalDuration,
+                    size: 280
+                });
+
+                setTimeout(() => {
+                    const targets = this.world.bodies.filter(b => !b.isStatic && !b.isActivePiece && b.position.y > CONFIG.GAME.HEIGHT - 200);
+                    
+                    if (targets.length === 0) {
+                        this.isProcessing = false;
+                        return;
+                    }
+
+                    // 吸い込み前準備
+                    targets.forEach(b => {
+                        b.isSensor = true; // 衝突判定を無効化
+                        Body.setVelocity(b, { x: 0, y: 0 }); // 勢いを殺す
+                        b.originalFrictionAir = b.frictionAir;
+                        b.frictionAir = 0.5; // 空気抵抗を上げて空中に留める
+                        b.originalScaleX = b.render.sprite.xScale || 1;
+                        b.originalScaleY = b.render.sprite.yScale || 1;
+                    });
+
+                    const suckDuration = 500;
+                    const startTime = Date.now();
+
+                    // アニメーションループ（タイマーで擬似Tween）
+                    const suckInterval = setInterval(() => {
+                        const now = Date.now();
+                        const progress = Math.min(1, (now - startTime) / suckDuration);
+                        const ease = progress * progress; // easeIn
+                        
+                        targets.forEach(b => {
+                            // 中心へ少しずつ引き寄せる
+                            const dx = (portalX - b.position.x) * 0.15;
+                            const dy = (bottomPortalY - b.position.y) * 0.15;
+                            Body.setPosition(b, { x: b.position.x + dx, y: b.position.y + dy });
+                            
+                            // 縮小させる
+                            const currentScaleX = b.originalScaleX * (1 - ease * 0.9);
+                            const currentScaleY = b.originalScaleY * (1 - ease * 0.9);
+                            b.render.sprite.xScale = Math.max(0.01, currentScaleX);
+                            b.render.sprite.yScale = Math.max(0.01, currentScaleY);
+                        });
+                        
+                        if (progress >= 1) {
+                            clearInterval(suckInterval);
+                            // 吸い込み完了 → 上のポータルから吐き出す
+                            targets.forEach(b => {
+                                b.render.sprite.xScale = b.originalScaleX;
+                                b.render.sprite.yScale = b.originalScaleY;
+                                b.isSensor = false;
+                                b.frictionAir = b.originalFrictionAir; // 元に戻す
+                                
+                                Body.setPosition(b, {
+                                    x: portalX + (Math.random() - 0.5) * 80,
+                                    y: topPortalY + 20
+                                });
+                                Body.setVelocity(b, { x: (Math.random() - 0.5) * 6, y: 12 });
+                            });
+                            this.isProcessing = false;
+                        }
+                    }, 16); // 約60fps
+
+                }, portalDuration * 0.2); // ポータルが開き始めたら吸い込み開始
             }
         }, 1000);
     }
@@ -1751,35 +1999,88 @@ class GameBoard {
     }
 
     /* ---- CPU AI ---- */
-    startCpuAI() {
+    startCpuAI(difficulty = 'normal') {
         if (this.isNetwork) return;
+
+        let thinkInterval = 400;
+        let fastDropRate = 0.1;
+        let skillDelay = 1000;
+        let dangerThreshold = 0;
+
+        if (difficulty === 'easy') {
+            thinkInterval = 600;
+            fastDropRate = 0.05;
+            skillDelay = 2000;
+        } else if (difficulty === 'normal') {
+            thinkInterval = 400;
+            fastDropRate = 0.1;
+            skillDelay = 1000;
+        } else if (difficulty === 'hard') {
+            thinkInterval = 150;
+            fastDropRate = 0.6;
+            skillDelay = 200;
+            dangerThreshold = CONFIG.GAME.HEIGHT * 0.4;
+        }
+
         const thinkLoop = () => {
             if (!this.gameStarted || this.gameManager.isGameOver) return;
             
-            if (this.activePiece) {
+            if (this.activePiece && this.activePiece.bodies && this.activePiece.bodies.length > 0) {
                 if (!this.cpuTargetX) {
                     const any = this.world.bodies.filter(b => !b.isStatic && !b.isActivePiece && b.label !== 'ojyama');
-                    this.cpuTargetX = any.length > 0 
-                        ? any[Math.floor(Math.random()*any.length)].position.x 
-                        : Math.random() * (CONFIG.GAME.WIDTH - 100) + 50;
+                    
+                    if (difficulty === 'hard') {
+                        // Hardの場合は色が合う場所を優先的に狙う
+                        const activeColor = this.activePiece.bodies[0].label;
+                        const same = any.filter(b => b.label === activeColor);
+                        if (same.length > 0) {
+                            same.sort((a, b) => a.position.y - b.position.y);
+                            this.cpuTargetX = same[0].position.x;
+                        }
+                    }
+                    
+                    if (!this.cpuTargetX) {
+                        this.cpuTargetX = any.length > 0 
+                            ? any[Math.floor(Math.random()*any.length)].position.x 
+                            : Math.random() * (CONFIG.GAME.WIDTH - 100) + 50;
+                    }
                 }
 
                 if (Math.random() < 0.3) this.rotate();
                 
                 if (this.activePiece.x < this.cpuTargetX - 15) this.moveRight();
                 else if (this.activePiece.x > this.cpuTargetX + 15) this.moveLeft();
-                else if (Math.random() < 0.1) this.fastDrop();
+                else {
+                    // 目標Xに到達した場合は高確率(または確定)で高速落下
+                    if (difficulty === 'hard' || Math.random() < fastDropRate) {
+                        this.fastDrop();
+                    }
+                }
             } else {
                 this.cpuTargetX = null;
             }
 
-            this.cpuTimer = setTimeout(thinkLoop, 400);
+            // Hardの場合はピンチ時にシャッフル（シェイク）を使う
+            if (difficulty === 'hard' && this.shakeCount > 0) {
+                const highestPuyo = this.world.bodies
+                    .filter(b => !b.isStatic && !b.isActivePiece)
+                    .reduce((minY, b) => Math.min(minY, b.position.y), CONFIG.GAME.HEIGHT);
+                
+                // お邪魔の予告がたくさんあるか、積まれている高さが高い場合
+                if (highestPuyo < dangerThreshold || (this.readyOjyama + this.pendingOjyama) > 15) {
+                    if (Math.random() < 0.05) {
+                        this.shakeBoard();
+                    }
+                }
+            }
+
+            this.cpuTimer = setTimeout(thinkLoop, thinkInterval);
         };
         this.cpuTimer = setTimeout(thinkLoop, 1000);
 
         const skillLoop = () => {
             if (!this.gameStarted || this.gameManager.isGameOver) return;
-            if (this.skillGauge >= CONFIG.GAME.SKILL_MAX) setTimeout(() => this.useSkill(), 500);
+            if (this.skillGauge >= CONFIG.GAME.SKILL_MAX) setTimeout(() => this.useSkill(), skillDelay);
             this.cpuSkillTimer = setTimeout(skillLoop, 1000);
         };
         this.cpuSkillTimer = setTimeout(skillLoop, 1000);
@@ -1917,30 +2218,78 @@ class MotiMotiPanicBattle {
     }
 
     _initTitleScreen() {
-        const btnStartScoreAttack = document.getElementById('btn-start-scoreattack');
+        const btnStartGame = document.getElementById('btn-start-game');
+        const gameSelectOverlay = document.getElementById('game-select-overlay');
+        const btnSelectClose = document.getElementById('btn-select-close');
+        
+        const btnModeScoreAttack = document.getElementById('btn-mode-scoreattack');
+        const scoreAttackOptions = document.getElementById('scoreattack-options');
+        const btnStartScoreAttack60 = document.getElementById('btn-start-scoreattack-60');
+        const btnStartScoreAttack90 = document.getElementById('btn-start-scoreattack-90');
         const btnStartScoreAttack180 = document.getElementById('btn-start-scoreattack-180');
+        
         const btnStartSingle = document.getElementById('btn-start-single');
         const btnStartOnline = document.getElementById('btn-start-online');
+        
         const btnHowto = document.getElementById('btn-howto');
         const btnClose = document.getElementById('btn-howto-close');
         const overlay  = document.getElementById('howto-overlay');
 
-        if (btnStartScoreAttack) btnStartScoreAttack.addEventListener('click', () => {
-            this.gameMode = 'scoreAttack';
-            this.scoreAttackTime = 90;
-            showScreen('screen-select');
+        if (btnStartGame) btnStartGame.addEventListener('click', () => {
+            if (gameSelectOverlay) gameSelectOverlay.classList.remove('hidden');
         });
-        if (btnStartScoreAttack180) btnStartScoreAttack180.addEventListener('click', () => {
-            this.gameMode = 'scoreAttack';
-            this.scoreAttackTime = 180;
-            showScreen('screen-select');
+
+        if (btnSelectClose) btnSelectClose.addEventListener('click', () => {
+            if (gameSelectOverlay) gameSelectOverlay.classList.add('hidden');
+            if (scoreAttackOptions) scoreAttackOptions.classList.add('hidden');
         });
+
+        // 難易度選択ポップアップ
+        const diffOverlay = document.getElementById('difficulty-overlay');
+        const btnDiffClose = document.getElementById('btn-diff-close');
+        
+        if (btnDiffClose) btnDiffClose.addEventListener('click', () => {
+            if (diffOverlay) diffOverlay.classList.add('hidden');
+        });
+
+        const startSingleMode = (difficulty) => {
+            this.gameDifficulty = difficulty;
+            if (diffOverlay) diffOverlay.classList.add('hidden');
+            if (this.selectedChar) this._startGame(this.selectedChar);
+        };
+
+        const btnDiffEasy = document.getElementById('btn-diff-easy');
+        const btnDiffNormal = document.getElementById('btn-diff-normal');
+        const btnDiffHard = document.getElementById('btn-diff-hard');
+
+        if (btnDiffEasy) btnDiffEasy.addEventListener('click', () => startSingleMode('easy'));
+        if (btnDiffNormal) btnDiffNormal.addEventListener('click', () => startSingleMode('normal'));
+        if (btnDiffHard) btnDiffHard.addEventListener('click', () => startSingleMode('hard'));
+
+        if (btnModeScoreAttack) btnModeScoreAttack.addEventListener('click', () => {
+            if (scoreAttackOptions) scoreAttackOptions.classList.toggle('hidden');
+        });
+
+        const startScoreAttack = (time) => {
+            this.gameMode = 'scoreAttack';
+            this.scoreAttackTime = time;
+            if (gameSelectOverlay) gameSelectOverlay.classList.add('hidden');
+            showScreen('screen-select');
+        };
+
+        if (btnStartScoreAttack60) btnStartScoreAttack60.addEventListener('click', () => startScoreAttack(60));
+        if (btnStartScoreAttack90) btnStartScoreAttack90.addEventListener('click', () => startScoreAttack(90));
+        if (btnStartScoreAttack180) btnStartScoreAttack180.addEventListener('click', () => startScoreAttack(180));
+
         if (btnStartSingle) btnStartSingle.addEventListener('click', () => {
             this.gameMode = 'single';
+            if (gameSelectOverlay) gameSelectOverlay.classList.add('hidden');
             showScreen('screen-select');
         });
+
         if (btnStartOnline) btnStartOnline.addEventListener('click', () => {
             this.gameMode = 'online';
+            if (gameSelectOverlay) gameSelectOverlay.classList.add('hidden');
             showScreen('screen-online-menu');
         });
         if (btnHowto) btnHowto.addEventListener('click', () => { if (overlay) overlay.classList.remove('hidden'); });
@@ -2054,8 +2403,13 @@ class MotiMotiPanicBattle {
                         introOverlay.classList.remove('active');
                         setTimeout(() => {
                             introOverlay.classList.add('hidden');
-                            if (this.gameMode === 'scoreAttack' || this.gameMode === 'single') {
+                            if (this.gameMode === 'scoreAttack') {
+                                this.gameDifficulty = 'normal'; // スコアアタックはノーマル固定
                                 this._startGame(char);
+                            } else if (this.gameMode === 'single') {
+                                this.selectedChar = char;
+                                const diffOverlay = document.getElementById('difficulty-overlay');
+                                if (diffOverlay) diffOverlay.classList.remove('hidden');
                             } else {
                                 this.myChar = char;
                                 this._startMatching();
@@ -2063,8 +2417,13 @@ class MotiMotiPanicBattle {
                         }, 300); // フェードアウト待ち
                     }, 3300);
                 } else {
-                    if (this.gameMode === 'scoreAttack' || this.gameMode === 'single') {
+                    if (this.gameMode === 'scoreAttack') {
+                        this.gameDifficulty = 'normal';
                         this._startGame(char);
+                    } else if (this.gameMode === 'single') {
+                        this.selectedChar = char;
+                        const diffOverlay = document.getElementById('difficulty-overlay');
+                        if (diffOverlay) diffOverlay.classList.remove('hidden');
                     } else {
                         this.myChar = char;
                         this._startMatching();
@@ -2238,7 +2597,8 @@ class MotiMotiPanicBattle {
         if (this.cpuBoard)    { this.cpuBoard.stop();    this.cpuBoard    = null; }
         this.isGameOver = false;
 
-        const oppChar = oppCharInput || CONFIG.CHARACTERS.find(c => c.id !== playerChar.id);
+        const availableOpps = CONFIG.CHARACTERS.filter(c => c.id !== playerChar.id);
+        const oppChar = oppCharInput || availableOpps[Math.floor(Math.random() * availableOpps.length)];
         showScreen('screen-battle');
 
         ['player-canvas', 'cpu-canvas'].forEach(id => {
@@ -2298,7 +2658,7 @@ class MotiMotiPanicBattle {
                     if (this.gameMode === 'single') {
                         this.cpuBoard.gameStarted = true;
                         this.cpuBoard.spawnNextPiece();
-                        this.cpuBoard.startCpuAI();
+                        this.cpuBoard.startCpuAI(this.gameDifficulty);
                     } else if (this.gameMode === 'scoreAttack') {
                         // スコアアタック用のメインタイマー開始
                         this._startMainTimer(this.scoreAttackTime || 90);

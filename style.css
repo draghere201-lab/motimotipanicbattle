@@ -19,7 +19,15 @@
 
 body {
     font-family: var(--font-jp);
-    background: var(--bg-gradient);
+    background-color: #f0e6ff;
+    background-image: 
+        linear-gradient(to bottom, rgba(240, 230, 255, 0) 0%, rgba(240, 230, 255, 1) 80%),
+        radial-gradient(rgba(255, 101, 163, 0.25) 15%, transparent 16%),
+        radial-gradient(rgba(255, 101, 163, 0.25) 15%, transparent 16%),
+        var(--bg-gradient);
+    background-size: 100% 100%, 30px 30px, 30px 30px, 100% 100%;
+    background-position: 0 0, 0 0, 15px 15px, 0 0;
+    background-attachment: fixed;
     color: var(--text-color);
     min-height: 100vh;
     overflow-x: hidden;
@@ -50,7 +58,6 @@ body {
     align-items: center;
     position: relative;
     overflow: hidden;
-    background: var(--bg-gradient);
 }
 
 /* 背景の装飾円 */
@@ -118,18 +125,21 @@ body {
     paint-order: stroke fill;
     filter: drop-shadow(0 4px 0 rgba(0,0,0,0.12));
     line-height: 1.05;
-    animation: letterFloat 3s ease-in-out infinite;
+    transform-origin: bottom center;
+    animation: letterMochi 2s ease-in-out infinite;
 }
 
 /* 各文字のアニメーションをずらす */
 .tl:nth-child(1) { animation-delay: 0.0s; }
-.tl:nth-child(2) { animation-delay: 0.12s; }
-.tl:nth-child(3) { animation-delay: 0.24s; }
-.tl:nth-child(4) { animation-delay: 0.36s; }
+.tl:nth-child(2) { animation-delay: 0.15s; }
+.tl:nth-child(3) { animation-delay: 0.3s; }
+.tl:nth-child(4) { animation-delay: 0.45s; }
 
-@keyframes letterFloat {
-    0%, 100% { transform: translateY(0) rotate(-2deg); }
-    50%       { transform: translateY(-7px) rotate(2deg); }
+@keyframes letterMochi {
+    0%, 100% { transform: scale(1, 1) translateY(0); }
+    25% { transform: scale(1.1, 0.9) translateY(4px); }
+    50% { transform: scale(0.92, 1.08) translateY(-8px); }
+    75% { transform: scale(1.05, 0.95) translateY(2px); }
 }
 
 /* カラーバリエーション（Trickcal風鮮やか系） */
@@ -510,10 +520,11 @@ body {
 }
 
 .char-card-img {
-    width: 120%;
-    height: 120%;
+    width: 100%;
+    height: 100%;
     object-fit: cover;
-    object-position: top center;
+    transform: scale(1.6);
+    object-position: center 25%;
 }
 
 .char-card h3 {
@@ -618,13 +629,49 @@ body {
     align-items: center;
     padding: 0.75rem;
     gap: 0.75rem;
-    background: linear-gradient(160deg, #1a0a2e 0%, #2d1246 50%, #1a0a1e 100%);
+    background: transparent;
     min-height: 100vh;
+    position: relative;
+    overflow: hidden;
+}
+
+/* バトル背景のキラキラした光の玉（オーブ） */
+#screen-battle::before,
+#screen-battle::after {
+    content: '';
+    position: absolute;
+    width: 300px;
+    height: 300px;
+    border-radius: 50%;
+    filter: blur(80px);
+    z-index: 0;
+    pointer-events: none;
+    animation: battleOrbFloat 10s ease-in-out infinite alternate;
+}
+
+#screen-battle::before {
+    background: rgba(255, 105, 180, 0.5); /* ピンクの光 */
+    top: -50px;
+    left: -50px;
+}
+
+#screen-battle::after {
+    background: rgba(100, 200, 255, 0.5); /* 水色の光 */
+    bottom: -50px;
+    right: -50px;
+    animation-delay: -5s;
+}
+
+@keyframes battleOrbFloat {
+    0% { transform: translate(0, 0) scale(1); }
+    100% { transform: translate(100px, 50px) scale(1.5); }
 }
 
 .battle-header {
     width: 100%;
     text-align: center;
+    position: relative;
+    z-index: 1;
 }
 
 .logo {
@@ -641,6 +688,8 @@ body {
     width: 100%;
     max-width: 900px;
     flex: 1;
+    position: relative;
+    z-index: 1;
 }
 
 .board-container {
@@ -1384,6 +1433,20 @@ footer.battle-footer, footer {
 }
 
 /* ============================================
+   スマホ用仮想パッド
+   ============================================ */
+#battle-controls {
+    display: none;
+    flex-direction: column;
+    gap: 0.5rem;
+    width: 100%;
+    max-width: 900px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 1;
+}
+
+/* ============================================
    オンラインメニュー画面
    ============================================ */
 .online-menu-content {
@@ -1729,3 +1792,28 @@ footer.battle-footer, footer {
 .cpu-shake-status .shake-count {
     background: #ccc;
 }
+
+/* ============================================
+   Quit Button
+   ============================================ */
+.btn-quit {
+    background: #fff;
+    color: #e53935;
+    border: 3px solid #ffcdd2;
+    box-shadow: 0 4px 0 #ef9a9a;
+    font-weight: bold;
+}
+.btn-quit:hover { transform: translateY(2px); box-shadow: 0 2px 0 #ef9a9a; }
+.btn-quit:active { transform: translateY(4px); box-shadow: none; }
+
+/* ============================================
+   Difficulty Buttons
+   ============================================ */
+#btn-diff-easy:hover { filter: brightness(1.1); transform: translateY(2px); box-shadow: 0 4px 0 #388e3c !important; }
+#btn-diff-easy:active { transform: translateY(6px); box-shadow: none !important; }
+
+#btn-diff-normal:hover { filter: brightness(1.1); transform: translateY(2px); box-shadow: 0 4px 0 #f57c00 !important; }
+#btn-diff-normal:active { transform: translateY(6px); box-shadow: none !important; }
+
+#btn-diff-hard:hover { filter: brightness(1.1); transform: translateY(2px); box-shadow: 0 4px 0 #d32f2f !important; }
+#btn-diff-hard:active { transform: translateY(6px); box-shadow: none !important; }

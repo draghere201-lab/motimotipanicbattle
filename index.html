@@ -46,11 +46,27 @@
                 <img src="assets/char/ベリータ.png"   alt="ベリータ"  class="title-char right-char">
             </div>
             <div class="title-buttons">
-                <button id="btn-start-scoreattack" class="btn btn-primary" style="background: #ff3366; box-shadow: 0 6px 0 #cc0033;">⭐ スコアタ(90秒)</button>
-                <button id="btn-start-scoreattack-180" class="btn btn-primary" style="background: #ff3366; box-shadow: 0 6px 0 #cc0033;">⭐ スコアタ(180秒)</button>
-                <button id="btn-start-single" class="btn btn-primary">▶ ひとりで遊ぶ(CPU戦)</button>
-                <button id="btn-start-online" class="btn btn-primary c-purple-btn">🌐 だれかと遊ぶ(通信対戦)</button>
+                <button id="btn-start-game" class="btn btn-primary" style="background: #ff3366; box-shadow: 0 6px 0 #cc0033; font-size: 1.5rem; padding: 15px 40px;">▶ スタート</button>
                 <button id="btn-howto" class="btn btn-secondary">？ あそびかた</button>
+            </div>
+        </div>
+
+        <!-- ゲームセレクトポップアップ -->
+        <div id="game-select-overlay" class="overlay hidden">
+            <div class="modal select-modal">
+                <h2>🎮 モードをえらぶ</h2>
+                <div class="mode-buttons">
+                    <button id="btn-mode-scoreattack" class="btn btn-primary" style="background: #ff3366; box-shadow: 0 6px 0 #cc0033; margin-bottom: 10px;">⭐ スコアアタック</button>
+                    <div id="scoreattack-options" class="hidden" style="margin-bottom: 15px; background: rgba(0,0,0,0.1); padding: 10px; border-radius: 10px;">
+                        <p style="margin-bottom: 5px; color: #333; font-weight: bold;">制限時間をえらんでね！</p>
+                        <button id="btn-start-scoreattack-60" class="btn btn-secondary" style="width: auto; display: inline-block; margin: 0 5px;">60秒</button>
+                        <button id="btn-start-scoreattack-90" class="btn btn-secondary" style="width: auto; display: inline-block; margin: 0 5px;">90秒</button>
+                        <button id="btn-start-scoreattack-180" class="btn btn-secondary" style="width: auto; display: inline-block; margin: 0 5px;">180秒</button>
+                    </div>
+                    <button id="btn-start-single" class="btn btn-primary" style="margin-bottom: 10px;">▶ ひとりで遊ぶ(CPU戦)</button>
+                    <button id="btn-start-online" class="btn btn-primary c-purple-btn">🌐 だれかと遊ぶ(通信対戦)</button>
+                </div>
+                <button id="btn-select-close" class="btn btn-secondary" style="margin-top: 20px;">とじる</button>
             </div>
         </div>
 
@@ -131,6 +147,19 @@
             <div class="char-intro-content">
                 <img id="char-intro-img" src="" alt="character" class="char-intro-img">
                 <h2 id="char-intro-name" class="char-intro-name"></h2>
+            </div>
+        </div>
+
+        <!-- 難易度選択ポップアップ -->
+        <div id="difficulty-overlay" class="overlay hidden">
+            <div class="modal select-modal">
+                <h2>🎮 CPUのつよさをえらぶ</h2>
+                <div class="mode-buttons">
+                    <button id="btn-diff-easy" class="btn btn-primary" style="background: #4caf50; box-shadow: 0 6px 0 #388e3c; margin-bottom: 10px;">🟢 かんたん</button>
+                    <button id="btn-diff-normal" class="btn btn-primary" style="background: #ff9800; box-shadow: 0 6px 0 #f57c00; margin-bottom: 10px;">🟡 ふつう</button>
+                    <button id="btn-diff-hard" class="btn btn-primary" style="background: #f44336; box-shadow: 0 6px 0 #d32f2f; margin-bottom: 10px;">🔴 むずかしい</button>
+                </div>
+                <button id="btn-diff-close" class="btn btn-secondary" style="margin-top: 20px;">とじる</button>
             </div>
         </div>
     </div>

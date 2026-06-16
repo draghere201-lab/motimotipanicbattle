@@ -37,6 +37,26 @@ export const CONFIG = {
             color: '#bd00ff',
             fieldColor: '#ce93d8',   // フィールド枠色（紫）
             chainTime: 4000          // チェイン猶予 4秒
+        },
+        { 
+            id: 'erena', 
+            name: 'エレナ', 
+            skill: 'DーCATふみふみ', 
+            description: '猫が通った場所のコマを水色（BLUE）に変える！', 
+            image: 'assets/char/エレナ.png',
+            color: '#00f5ff',
+            fieldColor: '#81d4fa',
+            chainTime: 4500
+        },
+        { 
+            id: 'syeidy', 
+            name: 'シェイディ', 
+            skill: 'ディメンション・スライド', 
+            description: 'フィールド下部のコマをワームホールで上部にワープさせて落下させる！', 
+            image: 'assets/char/シェイディ.png',
+            color: '#1e90ff',
+            fieldColor: '#1e90ff',
+            chainTime: 4500
         }
     ]
 };
