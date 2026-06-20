@@ -26,23 +26,31 @@ const CONFIG = {
     CHARACTERS: [
         {
             id: 'elfin', name: 'エルフィン', skill: '魔弾の暴走',
-            description: 'フィールド上のランダムなコマを緑に変える！大量連鎖のチャンス！',
-            image: 'assets/char/エルフィン.png', color: '#39ff14', skillRate: 4
+            description: '【コマ特性: 軽量・超バウンド】フィールド上のランダムなコマを緑に変える！大量連鎖のチャンス！',
+            image: 'assets/char/エルフィン.png', color: '#39ff14', skillRate: 4,
+            density: 0.0005, restitution: 0.65, friction: 0.08,
+            cutIn: { xOffset: '0px', yOffset: '-25px', scale: 1.7 }
         },
         {
             id: 'velita', name: 'ベリータ', skill: 'ディメンションバースト',
-            description: '数カ所を爆破し、範囲内のコマを一斉に消去！ピンチ脱出に最適！',
-            image: 'assets/char/ベリータ.png', color: '#bd00ff', skillRate: 4
+            description: '【コマ特性: スタンダード】数カ所を爆破し、範囲内のコマを一斉に消去！ピンチ脱出に最適！',
+            image: 'assets/char/ベリータ.png', color: '#bd00ff', skillRate: 4,
+            density: 0.002, restitution: 0.15, friction: 0.10,
+            cutIn: { xOffset: '50px', yOffset: '-110px', scale: 3.7 }
         },
         { 
             id: 'erena', name: 'エレナ', skill: 'DーCATふみふみ', 
-            description: '猫が通った場所のコマを水色に変える！', 
-            image: 'assets/char/エレナ.png', color: '#00f5ff', skillRate: 2
+            description: '【コマ特性: 超ツルツル・超低反発】猫が通った場所のコマを水色に変える！', 
+            image: 'assets/char/エレナ.png', color: '#00f5ff', skillRate: 2,
+            density: 0.0015, restitution: 0.05, friction: 0.002,
+            cutIn: { xOffset: '45px', yOffset: '-10px', scale: 3.6 }
         },
         { 
             id: 'syeidy', name: 'シェイディ', skill: 'ディメンション・スライド', 
-            description: 'フィールド下部のコマをワームホールで上部にワープさせる！', 
-            image: 'assets/char/シェイディ.png', color: '#1e90ff', skillRate: 5
+            description: '【コマ特性: 超重量・超高摩擦】フィールド下部のコマをワームホールで上部にワープさせる！', 
+            image: 'assets/char/シェイディ.png', color: '#1e90ff', skillRate: 5,
+            density: 0.008, restitution: 0.0, friction: 0.50,
+            cutIn: { xOffset: '-35px', yOffset: '-20px', scale: 3.8 }
         }
     ]
 };
@@ -403,6 +411,18 @@ class VoiceManager {
         this.play(path, 1.0);
     }
 
+    playSkillCutinSE() {
+        const path = `assets/se/skillcutin.mp3`;
+        this.play(path, 0.8);
+    }
+
+    playCharacterSkillSE(charId) {
+        let fileName = charId;
+        if (charId === 'velita') fileName = 'berita';
+        const path = `assets/se/${fileName}_skill.mp3`;
+        this.play(path, 0.9);
+    }
+
     playBGM(path) {
         if (this.currentBgmPath === path && this.bgmAudio) {
             // 既に同じBGMが再生されている場合は何もしない
@@ -757,6 +777,20 @@ class GameBoard {
         this.skillBarElement = document.getElementById(`${id}-skill-bar`);
         this.skillBtnElement = document.getElementById(`${id}-skill-btn`);
 
+        // UI状態のリセット（再戦時用）
+        const shakeBtn = document.getElementById(`${id}-shake-btn`);
+        const shakeCountSpan = document.getElementById(`${id}-shake-count`);
+        if (shakeBtn) shakeBtn.disabled = false;
+        if (shakeCountSpan) shakeCountSpan.innerText = `(残:${this.shakeCount})`;
+        
+        if (this.skillBarElement) {
+            this.skillBarElement.style.width = '0%';
+            this.skillBarElement.classList.remove('ready');
+        }
+        if (this.skillBtnElement) {
+            this.skillBtnElement.disabled = true;
+        }
+
         // コマが埋まるのを防ぐため、Matter.jsの物理エンジンのイテレーション回数を増やす（精度向上）
         this.engine = Engine.create({ 
             gravity: { y: CONFIG.GAME.GRAVITY },
@@ -977,7 +1011,7 @@ class GameBoard {
                         bodies: this._getSyncData(),
                         vfxEffects: this.vfxEffects,
                         score: this.score,
-                        ojyama: this.ojyamaPool,
+                        ojyama: this.readyOjyama + this.pendingOjyama,
                         skill: this.skillGauge,
                         next: this.nextSet.map(s => s.type.id)
                     });
@@ -1024,10 +1058,10 @@ class GameBoard {
 
         const bodies = set.map(item => {
             const b = Bodies.circle(startX + item.rx, startY + item.ry, ps, {
-                restitution: 0.25,
-                friction: 0.3,
+                restitution: (this.character && this.character.restitution !== undefined) ? this.character.restitution : 0.25,
+                friction: (this.character && this.character.friction !== undefined) ? this.character.friction : 0.3,
                 frictionAir: 0.02, // 空気抵抗を追加して回転・滑りの減衰を早める
-                density: 0.003,
+                density: (this.character && this.character.density !== undefined) ? this.character.density : 0.003,
                 render: { sprite: { texture: item.type.image, xScale: scale, yScale: scale } },
                 label: item.type.id,
                 isSensor: true
@@ -1635,9 +1669,9 @@ class GameBoard {
     _sendOjyama() {
         let count = 0;
         if (this.totalClearedThisTurn >= CONFIG.GAME.OJYAMA_SEND_THRESHOLD)
-            count += this.totalClearedThisTurn - CONFIG.GAME.OJYAMA_SEND_THRESHOLD + 1;
+            count += Math.floor((this.totalClearedThisTurn - CONFIG.GAME.OJYAMA_SEND_THRESHOLD) / 2) + 1;
         if (this.chainCount >= 2)
-            count += (this.chainCount - 1) * 3;
+            count += (this.chainCount - 1) * 2;
             
         // これまでに送信した分を引き算して差分のみを送信（重複バグ修正）
         let newOjyama = count - this.sentOjyamaThisTurn;
@@ -1719,6 +1753,7 @@ class GameBoard {
         this.skillGauge = 0;
         this._updateSkillGaugeUI();
         this._showCutIn();
+        voice.playSkillCutinSE();
         sounds.playSkill();
         voice.playSkillVoice(this.character.name);
         
@@ -1738,7 +1773,19 @@ class GameBoard {
                 const targets = this.world.bodies
                     .filter(b => !b.isStatic && !b.isActivePiece && b.label !== 'ojyama' && b.label !== targetColor.id)
                     .sort(() => 0.5 - Math.random());
-                const count = Math.max(3, Math.min(targets.length, Math.ceil(targets.length * 0.4)));
+                
+                // コマが1個も無い場合は空打ち扱い → 即座にprocessingを解除して次のコマを呼ぶ
+                if (targets.length === 0) {
+                    this.isProcessing = false;
+                    this.spawnNextPiece();
+                    return;
+                }
+                
+                // カットインSEから一拍おいてキャラSEを鳴らす
+                voice.playCharacterSkillSE('elfin');
+                // count は必ず targets.length 以下に制限する（超えると undefined 参照エラーでクラッシュ！）
+                const rawCount = Math.max(3, Math.ceil(targets.length * 0.4));
+                const count = Math.min(rawCount, targets.length);
                 
                 // 1. 弾の飛来演出
                 for (let i = 0; i < count; i++) {
@@ -1781,6 +1828,7 @@ class GameBoard {
                 }, 600 + (count - 1) * 100);
 
             } else if (this.character.id === 'velita') {
+                voice.playCharacterSkillSE('velita');
                 const toRemove = new Set();
                 const points = [];
                 const targetBodies = this.world.bodies.filter(b => !b.isStatic && !b.isActivePiece);
@@ -1830,12 +1878,23 @@ class GameBoard {
                     
                     const list = [...toRemove];
                     if (list.length > 0) {
+                        // ベリータ火力化: 消去した通常コマ3個につき1個のお邪魔スピキを相手に送信
+                        const normalCount = list.filter(b => b.label !== 'ojyama').length;
+                        const ojyamaToSend = Math.floor(normalCount / 3);
+                        if (ojyamaToSend > 0 && this.opponentBoard) {
+                            if (this.gameManager.gameMode === 'online') {
+                                net.send({ type: 'attack', count: ojyamaToSend });
+                            } else {
+                                this.opponentBoard.receiveOjyama(ojyamaToSend);
+                            }
+                        }
                         this._removeBodies(list);
                     } else {
                         this.isProcessing = false;
                     }
                 }, 500 + 2 * 150);
             } else if (this.character.id === 'erena') {
+                voice.playCharacterSkillSE('erena');
                 const targetColor = CONFIG.COLORS.BLUE;
                 const catDuration = 1800;
                 const steps = 3; // 3ふみふみに変更
@@ -1886,33 +1945,39 @@ class GameBoard {
                 }, catDuration + 700);
 
             } else if (this.character.id === 'syeidy') {
+                voice.playCharacterSkillSE('syeidy');
                 const portalDuration = 1800;
                 
                 const portalX = CONFIG.GAME.WIDTH / 2;
                 const bottomPortalY = CONFIG.GAME.HEIGHT - 100;
                 const topPortalY = 100;
 
-                this.vfxEffects.push({
-                    type: 'apng_static',
-                    animType: 'portal',
-                    srcId: 'effects_syeidy',
-                    x: portalX,
-                    y: bottomPortalY,
-                    startTime: Date.now(),
-                    duration: portalDuration,
-                    size: 280
-                });
-                
-                this.vfxEffects.push({
-                    type: 'apng_static',
-                    animType: 'portal',
-                    srcId: 'effects_syeidy',
-                    x: portalX,
-                    y: topPortalY,
-                    startTime: Date.now(),
-                    duration: portalDuration,
-                    size: 280
-                });
+                // APNGはCanvas drawImageでアニメーションしないため、<img>要素をオーバーレイとして直接表示する
+                const canvasWrapper = this.canvasWrapper;
+                const showApngOverlay = (y, duration) => {
+                    const overlay = document.createElement('img');
+                    overlay.src = 'assets/effects/syeidy_skill.png';
+                    overlay.style.cssText = `
+                        position: absolute;
+                        left: 50%;
+                        top: ${(y / CONFIG.GAME.HEIGHT) * 100}%;
+                        transform: translate(-50%, -50%);
+                        width: 280px;
+                        height: 280px;
+                        object-fit: contain;
+                        pointer-events: none;
+                        z-index: 10;
+                        animation: apngFadeInOut ${duration}ms ease both;
+                    `;
+                    canvasWrapper.style.position = 'relative';
+                    canvasWrapper.appendChild(overlay);
+                    setTimeout(() => {
+                        if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+                    }, duration);
+                };
+
+                showApngOverlay(bottomPortalY, portalDuration);
+                showApngOverlay(topPortalY, portalDuration);
 
                 setTimeout(() => {
                     const targets = this.world.bodies.filter(b => !b.isStatic && !b.isActivePiece && b.position.y > CONFIG.GAME.HEIGHT - 200);
@@ -1947,9 +2012,10 @@ class GameBoard {
                             const dy = (bottomPortalY - b.position.y) * 0.15;
                             Body.setPosition(b, { x: b.position.x + dx, y: b.position.y + dy });
                             
-                            // 縮小させる
-                            const currentScaleX = b.originalScaleX * (1 - ease * 0.9);
-                            const currentScaleY = b.originalScaleY * (1 - ease * 0.9);
+                            // 縮小・スパゲティ化（縦長に引き伸ばされて吸い込まれる演出）
+                            const currentScaleX = b.originalScaleX * (1 - ease * 0.96) * 0.4;
+                            const stretch = 1.0 + Math.sin(progress * Math.PI) * 1.2; // 途中で最大2.2倍に縦伸び
+                            const currentScaleY = b.originalScaleY * stretch * (1 - ease * 0.98);
                             b.render.sprite.xScale = Math.max(0.01, currentScaleX);
                             b.render.sprite.yScale = Math.max(0.01, currentScaleY);
                         });
@@ -1979,13 +2045,138 @@ class GameBoard {
     }
 
     _showCutIn() {
-        const layer = document.getElementById('cut-in');
-        document.getElementById('cut-in-img').src          = this.character.image;
-        document.getElementById('cut-in-char-name').innerText   = this.character.name;
-        document.getElementById('cut-in-skill-name').innerText  = this.character.skill + '！';
+        const side = this.id; // 'player' or 'cpu'
+        const layer = document.getElementById(`${side}-cut-in`);
+        if (!layer) return;
+
+        const img = document.getElementById(`${side}-cut-in-img`);
+        const charNameEl = document.getElementById(`${side}-cut-in-char-name`);
+        const video = layer.querySelector('.cut-in-video');
+        
+        // 目元アップ画像のパスを設定 (日本語ファイル名に対応)
+        if (img && this.character) {
+            img.src = `assets/catin/${this.character.name}.png`;
+            
+            // キャラクター定義データ（CONFIG.CHARACTERSのcutInパラメータ）から調整値を読み込んでCSS変数に適用
+            const adj = (this.character && this.character.cutIn) || { xOffset: '0px', yOffset: '0px', scale: 1.2 };
+            img.style.setProperty('--eye-x-offset', adj.xOffset);
+            img.style.setProperty('--eye-y-offset', adj.yOffset);
+            img.style.setProperty('--eye-scale', adj.scale);
+        }
+        
+        // キャラクター名はスタイリッシュにするため表示しない (CSSでコンテナ自体を非表示化)
+        /*
+        if (charNameEl && this.character) {
+            charNameEl.innerText = this.character.name;
+        }
+        */
+
+        // キャラクターのテーマカラーをCSS変数に適用して、スリットのフチの色を動的に変える
+        if (this.character) {
+            const themeColor = this.character.color || '#ff65a3';
+            layer.style.setProperty('--char-theme-color', themeColor);
+        }
+
+        // 動画の頭出しと再生
+        if (video) {
+            video.currentTime = 0;
+            video.play().catch(e => console.log("Video auto-play blocked or failed:", e));
+        }
+
+        // 表示の開始
         layer.classList.remove('hidden');
+        
+        // リフローを強制してアニメーションをリスタート
         void layer.offsetWidth;
-        setTimeout(() => layer.classList.add('hidden'), 1200);
+
+        // P5風の余韻を持たせるために、表示時間を1.6秒に延長
+        setTimeout(() => {
+            layer.classList.add('hidden');
+            if (video) {
+                video.pause();
+            }
+        }, 1600);
+    }
+
+    _playSkillVisualEffect(charId) {
+        const bodies = this.isNetwork ? this.networkBodies : this.world.bodies;
+        if (!bodies) return;
+        
+        if (charId === 'elfin') {
+            const targetColor = CONFIG.COLORS.GREEN;
+            const targets = bodies.filter(b => !b.isStatic && !b.isActivePiece && b.label !== 'ojyama' && b.label !== targetColor.id)
+                                  .sort(() => 0.5 - Math.random());
+            const count = Math.max(3, Math.min(targets.length, Math.ceil(targets.length * 0.4)));
+            for (let i = 0; i < count; i++) {
+                const tx = targets[i].position ? targets[i].position.x : targets[i].position.x;
+                const ty = targets[i].position ? targets[i].position.y : targets[i].position.y;
+                const startX = tx + (Math.random() - 0.5) * 500;
+                const startY = -250;
+                this.vfxEffects.push({
+                    type: 'magic_missile',
+                    startX: startX, startY: startY, endX: tx, endY: ty,
+                    controlX: startX + (tx - startX) / 2 + (Math.random() - 0.5) * 300,
+                    controlY: startY + (ty - startY) / 2 - 150,
+                    startTime: Date.now() + i * 100,
+                    duration: 600,
+                    color: 'rgba(50, 255, 100, 1)'
+                });
+                setTimeout(() => {
+                    this.vfxEffects.push({
+                        type: 'flash', x: tx, y: ty, startTime: Date.now(), duration: 500
+                    });
+                }, 600 + i * 100);
+            }
+        } else if (charId === 'velita') {
+            const points = [];
+            const targetBodies = bodies.filter(b => !b.isStatic && !b.isActivePiece);
+            let candidates = [...targetBodies].sort(() => 0.5 - Math.random());
+            for (let i = 0; i < 3; i++) {
+                let rx, ry;
+                if (candidates.length > 0) {
+                    const target = candidates.pop();
+                    rx = target.position.x; ry = target.position.y;
+                } else {
+                    rx = Math.random() * (CONFIG.GAME.WIDTH - 100) + 50;
+                    ry = Math.random() * (CONFIG.GAME.HEIGHT - 180) + 120;
+                }
+                points.push({ x: rx, y: ry });
+                const startX = rx + (Math.random() - 0.5) * 500;
+                const startY = -250;
+                this.vfxEffects.push({
+                    type: 'magic_missile',
+                    startX: startX, startY: startY, endX: rx, endY: ry,
+                    controlX: startX + (rx - startX) / 2 + (Math.random() - 0.5) * 300,
+                    controlY: startY + (ry - startY) / 2 - 150,
+                    startTime: Date.now() + i * 150,
+                    duration: 500,
+                    color: 'rgba(255, 50, 100, 1)'
+                });
+            }
+            setTimeout(() => {
+                points.forEach(p => {
+                    this.vfxEffects.push({
+                        type: 'explosion', x: p.x, y: p.y, startTime: Date.now(), duration: 600
+                    });
+                });
+            }, 500 + 2 * 150);
+        } else if (charId === 'erena') {
+            const steps = 3;
+            const interval = 1800 / steps;
+            for (let i = 0; i < steps; i++) {
+                setTimeout(() => {
+                    const progress = i / (steps - 1);
+                    const baseY = CONFIG.GAME.HEIGHT * 0.8 - (CONFIG.GAME.HEIGHT * 0.45 * progress);
+                    const sign = (i % 2 === 0) ? 1 : -1;
+                    const x = (CONFIG.GAME.WIDTH / 2) + (sign * 70) + (Math.random() * 30 - 15);
+                    const y = baseY + (Math.random() * 30 - 15);
+                    this.vfxEffects.push({
+                        type: 'apng_static', srcId: 'effects_erena',
+                        x: x, y: y, startTime: Date.now(), duration: 700, size: 160
+                    });
+                }, i * interval);
+            }
+        }
     }
 
     _checkGameOver() {
@@ -2006,6 +2197,9 @@ class GameBoard {
     /* ---- CPU AI ---- */
     startCpuAI(difficulty = 'normal') {
         if (this.isNetwork) return;
+        
+        // 既存のAIループがあれば一旦安全に停止する
+        this.stopCpuAI();
 
         let thinkInterval = 400;
         let fastDropRate = 0.1;
@@ -2132,10 +2326,23 @@ class GameBoard {
         this.cpuSkillTimer = setTimeout(skillLoop, 1000);
     }
 
-    stop() {
-        this.gameStarted = false;
+    stopCpuAI() {
         clearTimeout(this.cpuTimer);
         clearTimeout(this.cpuSkillTimer);
+        this.cpuTimer = null;
+        this.cpuSkillTimer = null;
+        this.cpuTargetX = null;
+        this.cpuTargetColor = null;
+        
+        // AI操作によるキーの押しっぱなし状態をリセット
+        this.isLeftPressed = false;
+        this.isRightPressed = false;
+        this.isFastDropping = false;
+    }
+
+    stop() {
+        this.gameStarted = false;
+        this.stopCpuAI();
         clearTimeout(this.deadlineTimer);
         try { Engine.clear(this.engine); } catch(e) {}
         try { if (this.render) Render.stop(this.render); } catch(e) {}
@@ -2155,6 +2362,14 @@ class GameBoard {
 
     _updateNextUI() {
         if (!this.nextContainer) return;
+        
+        // 変化判定（毎フレーム同期時のチカチカ点滅防止）
+        const nextIds = this.nextSet.map(item => item.type.id).join(',');
+        if (this._lastNextIds === nextIds) {
+            return;
+        }
+        this._lastNextIds = nextIds;
+
         this.nextContainer.innerHTML = '';
         this.nextSet.forEach(item => {
             const img = document.createElement('img');
@@ -2166,9 +2381,17 @@ class GameBoard {
 
     _updateOjyamaUI() {
         if (!this.ojyamaElement) return;
+        
+        const currentTotal = this.readyOjyama + this.pendingOjyama;
+        // 変化判定（毎フレーム同期時のチカチカ点滅防止）
+        if (this._lastOjyamaTotal === currentTotal) {
+            return;
+        }
+        this._lastOjyamaTotal = currentTotal;
+
         this.ojyamaElement.innerHTML = '';
         
-        let remaining = this.readyOjyama + this.pendingOjyama;
+        let remaining = currentTotal;
         
         while (remaining >= 30) {
             this._createOjyamaIcon('supiki-30');
@@ -2184,7 +2407,7 @@ class GameBoard {
         }
         
         const parent = this.ojyamaElement.parentElement;
-        if (parent) parent.style.animation = this.ojyamaPool > 0 ? 'skillPulse 0.4s infinite alternate' : 'none';
+        if (parent) parent.style.animation = currentTotal > 0 ? 'ojyamaWarningPulse 1.2s infinite alternate' : 'none';
     }
 
     _createOjyamaIcon(className) {
@@ -2248,6 +2471,14 @@ class MotiMotiPanicBattle {
         this.isGameOver  = false;
         this.playerBoard = null;
         this.cpuBoard    = null;
+
+        // デバッグモード判定（ローカル開発環境であるか、秘密のパラメータ ?debug=moti777 が指定されている時）
+        const isLocal = window.location.hostname === 'localhost' || 
+                        window.location.hostname === '127.0.0.1' || 
+                        window.location.protocol === 'file:';
+        const urlParams = new URLSearchParams(window.location.search);
+        const hasDebugPass = urlParams.get('debug') === 'moti777';
+        this.isDebugMode = isLocal || hasDebugPass;
 
         this.gameMode = 'single'; // 'single' or 'online'
         this.networkMode = '';    // 'free' or 'password'
@@ -2629,6 +2860,9 @@ class MotiMotiPanicBattle {
         } else if (data.type === 'skill_used' && this.cpuBoard) {
             // 相手がスキルを使用した
             this.cpuBoard._showCutIn();
+            if (this.oppChar) {
+                this.cpuBoard._playSkillVisualEffect(this.oppChar.id);
+            }
             sounds.playSkill();
             if (this.oppChar) voice.playSkillVoice(this.oppChar.name);
         } else if (data.type === 'rematch') {
@@ -2663,6 +2897,13 @@ class MotiMotiPanicBattle {
     }
 
     _startGame(playerChar, oppCharInput = null) {
+        // 再戦用の準備完了フラグをリセット
+        this.myReady = false;
+        this.oppReady = false;
+
+        if (document.activeElement && typeof document.activeElement.blur === 'function') {
+            document.activeElement.blur();
+        }
         if (this.playerBoard) { this.playerBoard.stop(); this.playerBoard = null; }
         if (this.cpuBoard)    { this.cpuBoard.stop();    this.cpuBoard    = null; }
         this.isGameOver = false;
@@ -2674,15 +2915,9 @@ class MotiMotiPanicBattle {
         ['player-canvas', 'cpu-canvas'].forEach(id => {
             const el = document.getElementById(id);
             if (el) {
-                const chainEl = el.querySelector('.chain-display');
-                el.innerHTML = '<div class="deadline-line"></div>';
-                if (chainEl) el.appendChild(chainEl);
-                else {
-                    const cd = document.createElement('div');
-                    cd.id = id.replace('-canvas', '-chain-display');
-                    cd.className = 'chain-display hidden';
-                    el.appendChild(cd);
-                }
+                // 既存のcanvas要素のみをクリアし、カットイン等の静的HTML構造は維持する
+                const canvas = el.querySelector('canvas');
+                if (canvas) canvas.remove();
             }
         });
 
@@ -2736,6 +2971,10 @@ class MotiMotiPanicBattle {
                 });
 
                 this._initBattleEvents();
+
+                if (this.isDebugMode) {
+                    this._createDebugPanel();
+                }
             });
         });
     }
@@ -2823,6 +3062,15 @@ class MotiMotiPanicBattle {
                     e.preventDefault();
                     if (document.activeElement.tagName !== 'BUTTON') this.playerBoard.shakeBoard();
                     break;
+                /*
+                case 'KeyP': // デバッグキー: スキルゲージをMAXにする
+                    e.preventDefault();
+                    if (this.playerBoard) {
+                        this.playerBoard.skillGauge = CONFIG.GAME.SKILL_MAX;
+                        this.playerBoard._updateSkillGaugeUI();
+                    }
+                    break;
+                */
             }
         };
 
@@ -2943,6 +3191,7 @@ class MotiMotiPanicBattle {
         if (this.playerBoard) { this.playerBoard.stop(); this.playerBoard = null; }
         if (this.cpuBoard)    { this.cpuBoard.stop();    this.cpuBoard    = null; }
         net.disconnect();
+        this._removeDebugPanel();
         voice.playBGM('assets/bgm/title.mp3');
         showScreen('screen-select');
     }
@@ -2952,8 +3201,74 @@ class MotiMotiPanicBattle {
         if (this.playerBoard) { this.playerBoard.stop(); this.playerBoard = null; }
         if (this.cpuBoard)    { this.cpuBoard.stop();    this.cpuBoard    = null; }
         net.disconnect();
+        this._removeDebugPanel();
         voice.playBGM('assets/bgm/title.mp3');
         showScreen('screen-title');
+    }
+
+    _createDebugPanel() {
+        this._removeDebugPanel(); // 既存のパネルがあれば削除
+        
+        const panel = document.createElement('div');
+        panel.id = 'floating-debug-panel';
+        panel.className = 'debug-panel';
+        
+        panel.innerHTML = `
+            <h4>🛠️ DEBUG PANEL</h4>
+            <div class="debug-row">
+                <label class="debug-checkbox-label">
+                    <input type="checkbox" id="debug-auto-play"> 🤖 1P Auto Play
+                </label>
+            </div>
+            <div class="debug-btn-group">
+                <button class="debug-action-btn" id="debug-btn-skill">⚡ スキルMAX</button>
+                <button class="debug-action-btn" id="debug-btn-attack">💀 予告スピキ+5</button>
+            </div>
+        `;
+        
+        document.body.appendChild(panel);
+        
+        // イベント紐付け
+        const chkAuto = document.getElementById('debug-auto-play');
+        if (chkAuto) {
+            chkAuto.addEventListener('change', (e) => {
+                if (!this.playerBoard) return;
+                if (e.target.checked) {
+                    this.playerBoard.startCpuAI('normal');
+                } else {
+                    this.playerBoard.stopCpuAI();
+                }
+            });
+        }
+        
+        const btnSkill = document.getElementById('debug-btn-skill');
+        if (btnSkill) {
+            btnSkill.addEventListener('click', () => {
+                if (!this.playerBoard) return;
+                this.playerBoard.skillGauge = CONFIG.GAME.SKILL_MAX;
+                this.playerBoard._updateSkillGaugeUI();
+            });
+        }
+        
+        const btnAttack = document.getElementById('debug-btn-attack');
+        if (btnAttack) {
+            btnAttack.addEventListener('click', () => {
+                if (!this.playerBoard) return;
+                // 相手にお邪魔を送る
+                if (this.gameMode === 'online') {
+                    net.send({ type: 'attack', count: 5 });
+                } else if (this.cpuBoard) {
+                    this.cpuBoard.receiveOjyama(5);
+                }
+            });
+        }
+    }
+    
+    _removeDebugPanel() {
+        const panel = document.getElementById('floating-debug-panel');
+        if (panel) {
+            panel.remove();
+        }
     }
 
     triggerGameOver(loserId) {
@@ -3000,6 +3315,15 @@ class MotiMotiPanicBattle {
         const cs = document.getElementById('result-cpu-score');
         if (ps) ps.innerText = this.playerBoard?.score ?? 0;
         if (cs) cs.innerText = this.cpuBoard?.score    ?? 0;
+        
+        const oppNameEl = document.getElementById('result-opponent-name');
+        if (oppNameEl) {
+            if (this.gameMode === 'online') {
+                oppNameEl.innerText = this.oppName || 'あいて';
+            } else {
+                oppNameEl.innerText = 'CPU';
+            }
+        }
         
         const restartBtn = document.getElementById('restart-btn');
         if (this.gameMode === 'online' && restartBtn) {

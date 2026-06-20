@@ -46,6 +46,14 @@ class GameBoard {
         this.skillBarElement  = document.getElementById(`${id}-skill-bar`);
         this.skillBtnElement  = document.getElementById(`${id}-skill-btn`);
 
+        if (this.skillBarElement) {
+            this.skillBarElement.style.width = '0%';
+            this.skillBarElement.classList.remove('ready');
+        }
+        if (this.skillBtnElement) {
+            this.skillBtnElement.disabled = true;
+        }
+
         // 物理エンジン
         this.engine = Engine.create({ gravity: { y: CONFIG.GAME.GRAVITY } });
         this.world  = this.engine.world;
@@ -448,6 +456,7 @@ class MotiMotiPanicBattle {
 
     /* ---- ゲーム開始 ---- */
     _startGame(playerChar) {
+        if (document.activeElement && typeof document.activeElement.blur === 'function') document.activeElement.blur();
         // 既存ボードが残っていたら停止・クリア
         if (this.playerBoard) { this.playerBoard.stop(); this.playerBoard = null; }
         if (this.cpuBoard)    { this.cpuBoard.stop();    this.cpuBoard    = null; }
@@ -459,10 +468,13 @@ class MotiMotiPanicBattle {
         // バトル画面に切り替え（この後 clientWidth/Height が確定する）
         showScreen('screen-battle');
 
-        // canvas ラッパーをリセット（前回の canvas を除去）
+        // canvas ラッパーをリセット（前回の canvas のみを除去し、カットイン等の静的HTML構造は維持する）
         ['player-canvas', 'cpu-canvas'].forEach(id => {
             const el = document.getElementById(id);
-            el.innerHTML = '<div class="deadline-line"></div>';
+            if (el) {
+                const canvas = el.querySelector('canvas');
+                if (canvas) canvas.remove();
+            }
         });
 
         // キャラ情報を UI に反映
@@ -570,6 +582,11 @@ class MotiMotiPanicBattle {
 
         document.getElementById('result-player-score').innerText = this.playerBoard?.score ?? 0;
         document.getElementById('result-cpu-score').innerText    = this.cpuBoard?.score    ?? 0;
+
+        const oppNameEl = document.getElementById('result-opponent-name');
+        if (oppNameEl) {
+            oppNameEl.innerText = 'CPU';
+        }
 
         document.getElementById('result-overlay').classList.remove('hidden');
     }

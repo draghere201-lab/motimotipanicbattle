@@ -1109,78 +1109,152 @@ footer.battle-footer, footer {
 /* ============================================
    スキルカットイン
    ============================================ */
+/* ============================================
+   スキルカットイン（ペルソナ5風）
+   ============================================ */
 .cut-in-layer {
-    position: fixed;
+    position: absolute;
     inset: 0;
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 200;
+    z-index: 99;
     pointer-events: none;
+    background: rgba(10, 5, 20, 0.45); /* 背後を少し暗くして際立たせる */
+    opacity: 0;
+    transition: opacity 0.3s ease;
 }
 
-.cut-in-bg {
+.cut-in-layer:not(.hidden) {
+    opacity: 1;
+}
+
+.cut-in-slits-container {
+    position: relative;
+    width: 140%; /* ボード幅からはみ出させて端を隠す */
+    height: 130px; /* ボードのサイズに合わせて少しスリムに */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transform: rotate(-7deg); /* 全体を斜めに傾ける */
+}
+
+/* スリット共通クリッピング */
+.cut-in-slit-border-white,
+.cut-in-slit-border-color,
+.cut-in-slit-main {
     position: absolute;
     width: 100%;
-    height: 140px;
-    background: linear-gradient(90deg,
-        rgba(255,101,163,0) 0%,
-        rgba(255,101,163,0.88) 20%,
-        rgba(255,101,163,0.88) 80%,
-        rgba(255,101,163,0) 100%);
-    animation: cutInBg 1.2s ease-in-out forwards;
+    height: 100%;
+    /* ペルソナ5風の鋭いギザギザな形（ガラスや紙が割れた・破れたような形） */
+    clip-path: polygon(
+        0% 30%, 5% 15%, 30% 20%, 35% 45%, 40% 5%, 50% 12%, 75% -5%, 80% 18%, 90% 10%, 100% 15%,
+        100% 85%, 92% 65%, 85% 90%, 55% 85%, 45% 110%, 35% 80%, 15% 95%, 8% 75%, 0% 85%
+    );
 }
 
-.cut-in-body {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 1.2rem;
+/* 白フチ（最背面） */
+.cut-in-slit-border-white {
+    background: #ffffff;
     z-index: 1;
-    animation: cutInBody 1.2s ease-in-out forwards;
+    animation: slitWhiteIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-.cut-in-body img {
-    height: 160px;
+@keyframes slitWhiteIn {
+    from { transform: translate(-100px, -4px) scaleX(0); opacity: 0; }
+    to { transform: translate(-10px, -4px) scaleY(1.05) scaleX(1); opacity: 1; }
+}
+
+/* キャラカラーフチ（中間） */
+.cut-in-slit-border-color {
+    background: var(--char-theme-color, #ff65a3);
+    z-index: 2;
+    animation: slitColorIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) 0.04s forwards;
+}
+
+@keyframes slitColorIn {
+    from { transform: translate(100px, 6px) scaleX(0); opacity: 0; }
+    to { transform: translate(8px, 6px) scaleY(1.03) scaleX(1); opacity: 1; }
+}
+
+/* メインスリット本体 */
+.cut-in-slit-main {
+    background: #000000;
+    z-index: 3;
+    overflow: hidden;
+    border-top: 3px solid #ffffff;
+    border-bottom: 3px solid #ffffff;
+    animation: slitMainIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) 0.06s forwards;
+}
+
+@keyframes slitMainIn {
+    from { transform: scaleX(0); opacity: 0; }
+    to { transform: scaleX(1); opacity: 1; }
+}
+
+/* スリット内背景動画 */
+.cut-in-slit-main video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0.8;
+    transform: rotate(7deg) scale(1.3); /* スリットの傾きを打ち消して水平に保つ */
+}
+
+/* 目元画像（右から素早くスライドイン、目元クローズアップ対応） */
+.cut-in-eye-img {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    height: 110%; /* やや大きめにして迫力を出す */
+    width: auto;
     object-fit: contain;
-    filter: drop-shadow(0 8px 12px rgba(0,0,0,0.3));
+    z-index: 4;
+    /* CSS変数を用いてキャラごとにX/Y軸のズレとズーム率を動的に設定（calcのパースエラーを回避するため分割して適用） */
+    transform: translate(-50%, -50%) translate(var(--eye-x-offset, 0px), var(--eye-y-offset, 0px)) rotate(7deg) scale(var(--eye-scale, 1.2));
+    opacity: 0;
+    animation: eyeSlideIn 0.35s cubic-bezier(0.25, 1, 0.5, 1) 0.15s forwards;
+    filter: drop-shadow(0 0 8px rgba(0,0,0,0.6));
 }
 
-.cut-in-text-box {
-    display: flex;
-    flex-direction: column;
-    color: #fff;
-    text-shadow: 2px 2px 0 #4a3740, 0 0 8px rgba(0,0,0,0.4);
+@keyframes eyeSlideIn {
+    from { transform: translate(-50%, -50%) translate(calc(120px + var(--eye-x-offset, 0px)), var(--eye-y-offset, 0px)) rotate(7deg) scale(calc(var(--eye-scale, 1.2) * 1.3)); opacity: 0; }
+    to { transform: translate(-50%, -50%) translate(var(--eye-x-offset, 0px), var(--eye-y-offset, 0px)) rotate(7deg) scale(var(--eye-scale, 1.2)); opacity: 1; }
 }
 
-.cut-in-char {
-    font-size: 1.1rem;
-    letter-spacing: 0.08em;
+/* キャラ名ステッカーコンテナ */
+.cut-in-text-container {
+    display: none; /* スタイリッシュにするため非表示 */
+    position: absolute;
+    bottom: 10px;
+    left: 15px;
+    z-index: 510;
+    transform: rotate(-5deg);
+    opacity: 0;
+    animation: textStickerIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) 0.25s forwards;
 }
 
-.cut-in-skill {
-    font-size: 2rem;
-    animation: skillPulse 0.4s ease-in-out infinite alternate;
+@keyframes textStickerIn {
+    from { transform: translate(-30px, 15px) rotate(-10deg) scale(0.9); opacity: 0; }
+    to { transform: translate(0, 0) rotate(-5deg) scale(1); opacity: 1; }
 }
 
-@keyframes cutInBg {
-    0%   { transform: scaleY(0); opacity: 0; }
-    12%  { transform: scaleY(1); opacity: 1; }
-    88%  { transform: scaleY(1); opacity: 1; }
-    100% { transform: scaleY(0); opacity: 0; }
-}
-
-@keyframes cutInBody {
-    0%   { transform: translateX(-160px); opacity: 0; }
-    18%  { transform: translateX(0);      opacity: 1; }
-    82%  { transform: translateX(0);      opacity: 1; }
-    100% { transform: translateX(160px);  opacity: 0; }
-}
-
-@keyframes skillPulse {
-    from { transform: scale(1); }
-    to   { transform: scale(1.07); }
+/* P5風ギザギザ斜めバッジ（ボードサイズに合わせてコンパクトに） */
+.cut-in-char-badge {
+    background: #111115;
+    color: #ffffff;
+    font-family: 'Mochiy Pop One', sans-serif;
+    font-size: 1.4rem; /* ボード内に収まるようにスリム化 */
+    font-weight: 900;
+    padding: 0.35rem 1.4rem;
+    border: 3px solid #ffffff;
+    box-shadow: 4px 4px 0 var(--char-theme-color, #ff65a3);
+    transform: skewX(-10deg);
+    display: inline-block;
+    text-shadow: 2px 2px 0 #000000;
+    letter-spacing: 0.1em;
 }
 
 /* ============================================
@@ -1820,3 +1894,176 @@ footer.battle-footer, footer {
 
 #btn-diff-hard:hover { filter: brightness(1.1); transform: translateY(2px); box-shadow: 0 4px 0 #d32f2f !important; }
 #btn-diff-hard:active { transform: translateY(6px); box-shadow: none !important; }
+
+/* ============================================
+   デバッグ用フローティングパネル
+   ============================================ */
+.debug-panel {
+    position: fixed;
+    top: 90px;
+    right: 20px;
+    background: rgba(25, 10, 35, 0.88);
+    backdrop-filter: blur(8px);
+    border: 3px solid var(--accent-pink, #ff65a3);
+    border-radius: 16px;
+    padding: 1rem;
+    z-index: 999;
+    color: #fff;
+    width: 220px;
+    box-shadow: 0 8px 32px rgba(255, 101, 163, 0.3), inset 0 0 12px rgba(255, 101, 163, 0.2);
+    font-family: var(--font-jp), sans-serif;
+    animation: debugPanelSlide 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes debugPanelSlide {
+    from { transform: translateX(250px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+.debug-panel h4 {
+    margin: 0 0 0.8rem 0;
+    font-size: 1rem;
+    color: var(--accent-pink, #ff65a3);
+    text-align: center;
+    border-bottom: 2px dashed rgba(255, 255, 255, 0.2);
+    padding-bottom: 0.4rem;
+    text-shadow: 0 0 8px var(--accent-pink);
+}
+
+.debug-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.8rem;
+    font-size: 0.85rem;
+}
+
+.debug-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+}
+
+.debug-btn-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.debug-action-btn {
+    font-family: var(--font-jp);
+    font-size: 0.8rem;
+    padding: 0.5rem;
+    background: linear-gradient(135deg, var(--accent-purple, #bd00ff) 0%, #8000ff 100%);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    box-shadow: 0 3px 0 #5a00bd;
+    transition: all 0.1s;
+    text-align: center;
+}
+
+.debug-action-btn:hover {
+    transform: translateY(1px);
+    box-shadow: 0 2px 0 #5a00bd;
+}
+
+.debug-action-btn:active {
+    transform: translateY(3px);
+    box-shadow: none;
+}
+
+/* お邪魔予告（スピキ警告）のゆっくりした点滅アニメーション */
+@keyframes ojyamaWarningPulse {
+    0% {
+        box-shadow: 0 0 4px rgba(255, 59, 48, 0.1);
+        border-color: rgba(255, 100, 80, 0.4);
+        background-color: rgba(255, 59, 48, 0.15);
+    }
+    100% {
+        box-shadow: 0 0 16px rgba(255, 59, 48, 0.6), inset 0 0 8px rgba(255, 59, 48, 0.3);
+        border-color: rgba(255, 59, 48, 0.9);
+        background-color: rgba(255, 59, 48, 0.4);
+    }
+}
+
+/* カットインの破片（ノイズ）エフェクト */
+.cut-in-noise {
+    position: absolute;
+    background: #ffffff;
+    z-index: 4;
+    opacity: 0;
+}
+
+/* 破片1: 左上の大きな白い破片 */
+.cut-in-noise.n1 {
+    top: -10px; left: 10%; width: 60px; height: 15px;
+    clip-path: polygon(0 80%, 100% 0, 80% 100%, 20% 100%);
+    animation: noiseFly1 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards 0.1s;
+}
+
+/* 破片2: 右上の細長い破片 */
+.cut-in-noise.n2 {
+    top: 5px; right: 15%; width: 80px; height: 8px;
+    background: var(--char-theme-color, #ff65a3);
+    clip-path: polygon(0 50%, 100% 0, 95% 100%, 5% 100%);
+    animation: noiseFly2 0.65s cubic-bezier(0.16, 1, 0.3, 1) forwards 0.15s;
+}
+
+/* 破片3: 左下のキャラカラーの破片 */
+.cut-in-noise.n3 {
+    bottom: -5px; left: 20%; width: 45px; height: 20px;
+    background: var(--char-theme-color, #ff65a3);
+    clip-path: polygon(20% 0, 100% 20%, 80% 100%, 0 80%);
+    animation: noiseFly3 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards 0.05s;
+}
+
+/* 破片4: 右下の小さな白い破片 */
+.cut-in-noise.n4 {
+    bottom: 10px; right: 25%; width: 25px; height: 25px;
+    clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+    animation: noiseFly4 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards 0.2s;
+}
+
+/* 破片5: 左側面の鋭い破片 */
+.cut-in-noise.n5 {
+    top: 40%; left: -5px; width: 30px; height: 10px;
+    clip-path: polygon(0 0, 100% 50%, 0 100%);
+    animation: noiseFly5 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards 0.1s;
+}
+
+@keyframes noiseFly1 {
+    0%   { transform: translate(20px, 20px) scale(0); opacity: 0; }
+    20%  { opacity: 1; }
+    100% { transform: translate(-60px, -50px) scale(1.2) rotate(-45deg); opacity: 0; }
+}
+@keyframes noiseFly2 {
+    0%   { transform: translate(-30px, 10px) scale(0); opacity: 0; }
+    30%  { opacity: 1; }
+    100% { transform: translate(80px, -30px) scale(1.1) rotate(30deg); opacity: 0; }
+}
+@keyframes noiseFly3 {
+    0%   { transform: translate(10px, -20px) scale(0); opacity: 0; }
+    25%  { opacity: 1; }
+    100% { transform: translate(-40px, 60px) scale(1.4) rotate(-60deg); opacity: 0; }
+}
+@keyframes noiseFly4 {
+    0%   { transform: translate(-10px, -10px) scale(0); opacity: 0; }
+    40%  { opacity: 1; }
+    100% { transform: translate(60px, 50px) scale(0.9) rotate(90deg); opacity: 0; }
+}
+@keyframes noiseFly5 {
+    0%   { transform: translate(15px, 0) scale(0); opacity: 0; }
+    20%  { opacity: 1; }
+    100% { transform: translate(-50px, -10px) scale(1.8) rotate(-20deg); opacity: 0; }
+}
+
+/* ---- シェイディスキル APNG オーバーレイアニメーション ---- */
+@keyframes apngFadeInOut {
+    0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
+    15%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    80%  { opacity: 1; }
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+}

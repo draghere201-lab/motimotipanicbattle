@@ -22,41 +22,45 @@ export const CONFIG = {
             id: 'elfin', 
             name: 'エルフィン', 
             skill: '魔弾の暴走', 
-            description: 'フィールド上のランダムなコマを緑（green）のコマに変える！大量連鎖のチャンス！', 
+            description: '【コマ特性: 軽量・超バウンド】フィールド上のランダムなコマを緑（green）のコマに変える！大量連鎖のチャンス！', 
             image: 'assets/char/エルフィン.png',
             color: '#39ff14',
             fieldColor: '#4fc3f7',   // フィールド枠色（水色）
-            chainTime: 5000          // チェイン猶予 5秒
+            chainTime: 5000,          // チェイン猶予 5秒
+            density: 0.0005, restitution: 0.65, friction: 0.08
         },
         { 
             id: 'velita', 
             name: 'ベリータ', 
             skill: 'ディメンションバースト', 
-            description: '数カ所を爆破し、その範囲内のコマを一斉に消去する！ピンチ脱出に最適！', 
+            description: '【コマ特性: スタンダード】数カ所を爆破し、その範囲内のコマを一斉に消去する！ピンチ脱出に最適！', 
             image: 'assets/char/ベリータ.png',
             color: '#bd00ff',
             fieldColor: '#ce93d8',   // フィールド枠色（紫）
-            chainTime: 4000          // チェイン猶予 4秒
+            chainTime: 4000,          // チェイン猶予 4秒
+            density: 0.002, restitution: 0.15, friction: 0.10
         },
         { 
             id: 'erena', 
             name: 'エレナ', 
             skill: 'DーCATふみふみ', 
-            description: '猫が通った場所のコマを水色（BLUE）に変える！', 
+            description: '【コマ特性: 超ツルツル・超低反発】猫が通った場所のコマを水色（BLUE）に変える！', 
             image: 'assets/char/エレナ.png',
             color: '#00f5ff',
             fieldColor: '#81d4fa',
-            chainTime: 4500
+            chainTime: 4500,
+            density: 0.0015, restitution: 0.05, friction: 0.002
         },
         { 
             id: 'syeidy', 
             name: 'シェイディ', 
             skill: 'ディメンション・スライド', 
-            description: 'フィールド下部のコマをワームホールで上部にワープさせて落下させる！', 
+            description: '【コマ特性: 超重量・超高摩擦】フィールド下部のコマをワームホールで上部にワープさせて落下させる！', 
             image: 'assets/char/シェイディ.png',
             color: '#1e90ff',
             fieldColor: '#1e90ff',
-            chainTime: 4500
+            chainTime: 4500,
+            density: 0.008, restitution: 0.0, friction: 0.50
         }
     ]
 };

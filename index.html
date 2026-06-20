@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=Outfit:wght@400;700;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=3">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
 </head>
@@ -186,6 +186,7 @@
                 <h3>あいことばマッチ</h3>
                 <p>同じあいことばを入力した人と対戦します</p>
                 <input type="text" id="input-room-password" placeholder="あいことば" class="input-password" maxlength="10">
+                <p class="name-desc" style="font-size:0.85rem; color:#ff3366; font-weight:bold; margin-top:0.5rem; margin-bottom: 0.8rem;">※半角英数字のみ(10文字まで)</p>
                 <button id="btn-password-match" class="btn btn-primary">部屋に入る / 作る</button>
             </div>
         </div>
@@ -252,6 +253,26 @@
                     <div class="canvas-wrapper" id="player-canvas">
                         <div class="deadline-line"></div>
                         <div id="player-chain-display" class="chain-display hidden"></div>
+                        
+                        <!-- スキルカットイン（プレイヤー側ボード内限定） -->
+                        <div id="player-cut-in" class="cut-in-layer hidden">
+                            <div class="cut-in-slits-container">
+                                <div class="cut-in-slit-border-white"></div>
+                                <div class="cut-in-slit-border-color" id="player-cut-in-border-color"></div>
+                                <div class="cut-in-slit-main">
+                                    <video class="cut-in-video" src="assets/catin/青カットイン.mp4" loop muted playsinline></video>
+                                    <img id="player-cut-in-img" src="" alt="Character Eye Cut" class="cut-in-eye-img">
+                                </div>
+                                <div class="cut-in-noise n1"></div>
+                                <div class="cut-in-noise n2"></div>
+                                <div class="cut-in-noise n3"></div>
+                                <div class="cut-in-noise n4"></div>
+                                <div class="cut-in-noise n5"></div>
+                            </div>
+                            <div class="cut-in-text-container">
+                                <div class="cut-in-char-badge" id="player-cut-in-char-name"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="skill-gauge-container">
@@ -299,6 +320,26 @@
                     <div class="canvas-wrapper" id="cpu-canvas">
                         <div class="deadline-line"></div>
                         <div id="cpu-chain-display" class="chain-display hidden"></div>
+                        
+                        <!-- スキルカットイン（CPU/対戦相手側ボード内限定） -->
+                        <div id="cpu-cut-in" class="cut-in-layer hidden">
+                            <div class="cut-in-slits-container">
+                                <div class="cut-in-slit-border-white"></div>
+                                <div class="cut-in-slit-border-color" id="cpu-cut-in-border-color"></div>
+                                <div class="cut-in-slit-main">
+                                    <video class="cut-in-video" src="assets/catin/青カットイン.mp4" loop muted playsinline></video>
+                                    <img id="cpu-cut-in-img" src="" alt="Character Eye Cut" class="cut-in-eye-img">
+                                </div>
+                                <div class="cut-in-noise n1"></div>
+                                <div class="cut-in-noise n2"></div>
+                                <div class="cut-in-noise n3"></div>
+                                <div class="cut-in-noise n4"></div>
+                                <div class="cut-in-noise n5"></div>
+                            </div>
+                            <div class="cut-in-text-container">
+                                <div class="cut-in-char-badge" id="cpu-cut-in-char-name"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="skill-gauge-container">
@@ -330,17 +371,6 @@
             </div>
         </footer>
 
-        <!-- スキルカットインレイヤー -->
-        <div id="cut-in" class="cut-in-layer hidden">
-            <div class="cut-in-bg"></div>
-            <div class="cut-in-body">
-                <img id="cut-in-img" src="" alt="Character">
-                <div class="cut-in-text-box">
-                    <div id="cut-in-char-name" class="cut-in-char"></div>
-                    <div id="cut-in-skill-name" class="cut-in-skill"></div>
-                </div>
-            </div>
-        </div>
 
         <!-- カウントダウンオーバーレイ -->
         <div id="countdown-overlay" class="countdown-overlay hidden">
@@ -356,7 +386,7 @@
                         <span>あなた</span><span id="result-player-score">0</span>
                     </div>
                     <div class="result-score-row" id="result-row-cpu">
-                        <span>CPU</span><span id="result-cpu-score">0</span>
+                        <span id="result-opponent-name">CPU</span><span id="result-cpu-score">0</span>
                     </div>
                 </div>
                 <div class="result-buttons">
@@ -369,6 +399,6 @@
     </div>
 
     <!-- JSは1ファイルにまとめてmoduleなしで読み込む (file://対応) -->
-    <script src="js/game.js"></script>
+    <script src="js/game.js?v=3"></script>
 </body>
 </html>
