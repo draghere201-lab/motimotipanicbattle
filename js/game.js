@@ -301,6 +301,39 @@ class SoundManager {
         } catch(e) {}
     }
 
+    playWin() {
+        try {
+            this.init();
+            const ctx = this.ctx;
+            if (ctx.state === 'suspended') ctx.resume();
+            const now = ctx.currentTime;
+            
+            // ファンファーレ風のアルペジオ (Cメジャーコード: C5, E5, G5, C6)
+            const freqs = [523.25, 659.25, 783.99, 1046.50];
+            const times = [0, 0.15, 0.3, 0.45];
+            
+            freqs.forEach((freq, i) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(freq, now + times[i]);
+                
+                // 最後の音は長く伸ばす
+                const duration = (i === freqs.length - 1) ? 1.0 : 0.15;
+                
+                gain.gain.setValueAtTime(0.06, now + times[i]);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + times[i] + duration);
+                
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                
+                osc.start(now + times[i]);
+                osc.stop(now + times[i] + duration);
+            });
+        } catch(e) {}
+    }
+
     playCountdown() {
         try {
             this.init();
@@ -472,24 +505,47 @@ class NetworkManager {
     }
 
     _setupConnection() {
-        this.conn.on('open', () => {
+        let isOpened = this.conn.open || false;
+
+        const handleOpen = () => {
             console.log('Connected to: ' + this.conn.peer);
+            isOpened = true;
             if (this.onConnected) this.onConnected(this.isHost);
-        });
+        };
+
+        if (this.conn.open) {
+            handleOpen();
+        } else {
+            this.conn.on('open', handleOpen);
+        }
 
         this.conn.on('data', (data) => {
+            if (data && data.type === 'room_full') {
+                console.log('Room is full. Retrying...');
+                isOpened = false;
+                this.conn.close();
+                this.conn = null;
+                if (this.peer) {
+                    this.peer.emit('error', { type: 'peer-unavailable' });
+                }
+                return;
+            }
             if (this.onData) this.onData(data);
         });
 
         this.conn.on('close', () => {
-            console.log('Connection closed');
-            if (this.onClose) this.onClose();
-            this.disconnect();
+            console.log('Connection closed. isOpened = ' + isOpened);
+            if (isOpened) {
+                if (this.onClose) this.onClose();
+                this.disconnect();
+            }
         });
         
         this.conn.on('error', (err) => {
             console.error('Connection error:', err);
-            if (this.onError) this.onError(err);
+            if (isOpened) {
+                if (this.onError) this.onError(err);
+            }
         });
     }
 
@@ -569,11 +625,18 @@ class NetworkManager {
             // 接続に成功した場合（すでにホストが存在した）
             let joined = false;
             
-            c.on('open', () => {
+            const handleJoined = () => {
+                if (joined) return;
                 joined = true;
                 if (timeoutCheck) clearTimeout(timeoutCheck);
                 console.log('Joined room successfully as guest.');
-            });
+            };
+
+            if (c.open) {
+                handleJoined();
+            } else {
+                c.on('open', handleJoined);
+            }
             
             c.on('error', (err) => {
                 console.error('Guest connection error:', err);
@@ -596,6 +659,7 @@ class NetworkManager {
                 // 相手（ホスト）がまだ存在しない -> 自分がホストになる
                 console.log('Room not found. Creating room as host...');
                 this.peer.destroy();
+                this.conn = null; // 古い接続オブジェクトを破棄して、新しいゲストを迎えられるようにする
                 
                 // ホストとして対象IDで再初期化
                 setTimeout(() => {
@@ -608,6 +672,14 @@ class NetworkManager {
                     });
                     
                     this.peer.on('connection', (c) => {
+                        if (this.conn) {
+                            console.log('Already connected to a guest, rejecting new connection.');
+                            c.on('open', () => {
+                                c.send({ type: 'room_full' });
+                                setTimeout(() => c.close(), 500);
+                            });
+                            return;
+                        }
                         console.log('Guest connected to my hosted room.');
                         this.conn = c;
                         this._setupConnection();
@@ -1754,7 +1826,7 @@ class GameBoard {
         this._updateSkillGaugeUI();
         this._showCutIn();
         voice.playSkillCutinSE();
-        sounds.playSkill();
+        voice.playCharacterSkillSE(this.character.id);
         voice.playSkillVoice(this.character.name);
         
         // ネットワークモード時、自分のスキル発動を相手に通知
@@ -2860,15 +2932,28 @@ class MotiMotiPanicBattle {
         } else if (data.type === 'skill_used' && this.cpuBoard) {
             // 相手がスキルを使用した
             this.cpuBoard._showCutIn();
+            voice.playSkillCutinSE();
             if (this.oppChar) {
                 this.cpuBoard._playSkillVisualEffect(this.oppChar.id);
+                voice.playCharacterSkillSE(this.oppChar.id);
+                voice.playSkillVoice(this.oppChar.name);
             }
-            sounds.playSkill();
-            if (this.oppChar) voice.playSkillVoice(this.oppChar.name);
         } else if (data.type === 'rematch') {
             // 相手が再戦を希望した
             this.oppReady = true;
+            if (data.newCharId) {
+                const newChar = CONFIG.CHARACTERS.find(c => c.id === data.newCharId);
+                if (newChar) {
+                    this.oppChar = newChar;
+                    if (this.cpuBoard) this.cpuBoard.character = newChar;
+                    const p2Thumb = document.getElementById('result-cpu-char-thumb');
+                    if (p2Thumb) p2Thumb.src = newChar.image;
+                }
+            }
             this._checkBothReadyForRematch();
+        } else if (data.type === 'opponent_left') {
+            alert('対戦相手が退出しました。');
+            this._backToSelect();
         }
     }
 
@@ -3175,15 +3260,66 @@ class MotiMotiPanicBattle {
             }
         };
 
+        const changeCharBtn = document.getElementById('btn-change-char');
+        if (changeCharBtn) changeCharBtn.onclick = () => {
+            if (this.gameMode === 'online') {
+                document.getElementById('result-overlay').classList.add('hidden');
+                document.getElementById('online-char-select-overlay').classList.remove('hidden');
+                this._renderOnlineCharList();
+            }
+        };
+
+        const onlineCharCancelBtn = document.getElementById('btn-online-char-cancel');
+        if (onlineCharCancelBtn) onlineCharCancelBtn.onclick = () => {
+            document.getElementById('online-char-select-overlay').classList.add('hidden');
+            document.getElementById('result-overlay').classList.remove('hidden');
+        };
+
         const backSelectBtn = document.getElementById('btn-back-select');
         if (backSelectBtn) backSelectBtn.onclick = () => {
+            if (this.gameMode === 'online') net.send({ type: 'opponent_left' });
             this._backToSelect();
         };
 
         const backTitleBtn = document.getElementById('btn-back-to-title');
         if (backTitleBtn) backTitleBtn.onclick = () => {
+            if (this.gameMode === 'online') net.send({ type: 'opponent_left' });
             this._backToTitle();
         };
+    }
+    
+    _renderOnlineCharList() {
+        const list = document.getElementById('online-char-list');
+        list.innerHTML = '';
+        CONFIG.CHARACTERS.forEach(char => {
+            const card = document.createElement('div');
+            card.className = 'char-card';
+            card.innerHTML = `
+                <div class="char-card-img-container">
+                    <img src="${char.image}" alt="${char.name}" class="char-card-img" loading="lazy">
+                </div>
+                <h3>${char.name}</h3>
+                <span class="skill-badge">⚡ ${char.skill}</span>
+            `;
+            card.onclick = () => {
+                document.getElementById('online-char-select-overlay').classList.add('hidden');
+                document.getElementById('result-overlay').classList.remove('hidden');
+                const restartBtn = document.getElementById('restart-btn');
+                if (restartBtn) {
+                    restartBtn.innerText = '相手を待っています...';
+                    restartBtn.disabled = true;
+                }
+                this.myChar = char;
+                if (this.playerBoard) this.playerBoard.character = char;
+                const p1Thumb = document.getElementById('result-player-char-thumb');
+                if (p1Thumb) p1Thumb.src = char.image;
+                
+                net.send({ type: 'rematch', newCharId: char.id });
+                this.myReady = true;
+                this._checkBothReadyForRematch();
+            };
+            list.appendChild(card);
+        });
     }
     
     _backToSelect() {
@@ -3284,56 +3420,102 @@ class MotiMotiPanicBattle {
         if (this.cpuBoard)    this.cpuBoard.stop();
 
         voice.stopBGM();
-        sounds.playGameOver();
 
         const playerWon = (loserId === 'cpu');
-        const titleEl   = document.getElementById('result-title');
+        
+        // ==== 勝敗によるSE再生 ====
+        if (playerWon) {
+            sounds.playWin(); // ファンファーレ
+        } else {
+            sounds.playGameOver(); // 既存の敗北音
+        }
+
+        const titleEl   = document.getElementById('result-main-title');
+        
+        const oppName = (this.gameMode === 'online') ? (this.oppName || 'あいて') : 'CPU';
+        const myName  = 'あなた';
+
+        // プレイヤーと相手のキャラクターデータ取得
+        const myChar = this.playerBoard ? this.playerBoard.character : (this.myChar || null);
+        const oppChar = this.cpuBoard ? this.cpuBoard.character : (this.oppChar || null);
+
         if (titleEl) {
             if (playerWon) {
-                titleEl.innerText = '🎉 YOU WIN!';
+                titleEl.innerText = 'YOU WIN!';
                 titleEl.style.color = 'var(--accent-pink)';
             } else {
-                if (this.gameMode === 'online') {
-                    titleEl.innerText = '💀 ' + (this.oppName || 'あいて') + ' WIN!';
-                } else {
-                    titleEl.innerText = '💀 YOU LOSE...';
-                }
+                titleEl.innerText = 'YOU LOSE...';
                 titleEl.style.color = '#888';
             }
         }
         
-        const charName = this.playerBoard ? this.playerBoard.character.name : (this.myChar ? this.myChar.name : null);
-        if (charName) {
+        if (myChar) {
             if (playerWon) {
-                voice.playWinVoice(charName);
+                voice.playWinVoice(myChar.name);
             } else {
-                voice.playLoseVoice(charName);
+                voice.playLoseVoice(myChar.name);
             }
         }
 
-        const ps = document.getElementById('result-player-score');
-        const cs = document.getElementById('result-cpu-score');
-        if (ps) ps.innerText = this.playerBoard?.score ?? 0;
-        if (cs) cs.innerText = this.cpuBoard?.score    ?? 0;
+        // 背景キャラクター画像の設定（勝った方のキャラ）
+        const bgCharImg = document.getElementById('result-bg-char');
+        if (bgCharImg) {
+            if (playerWon && myChar) bgCharImg.src = myChar.image;
+            else if (!playerWon && oppChar) bgCharImg.src = oppChar.image;
+        }
+
+        // プレイヤー1（自分）の情報設定
+        const p1Thumb = document.getElementById('result-player-char-thumb');
+        if (p1Thumb && myChar) p1Thumb.src = myChar.image;
         
-        const oppNameEl = document.getElementById('result-opponent-name');
-        if (oppNameEl) {
-            if (this.gameMode === 'online') {
-                oppNameEl.innerText = this.oppName || 'あいて';
-            } else {
-                oppNameEl.innerText = 'CPU';
-            }
+        const p1Stamp = document.getElementById('result-player-stamp');
+        if (p1Stamp) {
+            p1Stamp.className = 'result-stamp ' + (playerWon ? 'win' : 'lose');
+            p1Stamp.innerText = playerWon ? 'WIN' : 'LOSE';
         }
         
+        const ps = document.getElementById('result-player-score');
+        if (ps) ps.innerText = this.playerBoard?.score ?? 0;
+
+        // プレイヤー2（相手）の情報設定
+        const oppNameEl = document.getElementById('result-opponent-name');
+        if (oppNameEl) oppNameEl.innerText = oppName;
+
+        const p2Thumb = document.getElementById('result-cpu-char-thumb');
+        if (p2Thumb && oppChar) p2Thumb.src = oppChar.image;
+        
+        const p2Stamp = document.getElementById('result-cpu-stamp');
+        if (p2Stamp) {
+            p2Stamp.className = 'result-stamp ' + (!playerWon ? 'win' : 'lose');
+            p2Stamp.innerText = !playerWon ? 'WIN' : 'LOSE';
+        }
+
+        const cs = document.getElementById('result-cpu-score');
+        if (cs) cs.innerText = this.cpuBoard?.score ?? 0;
+        
         const restartBtn = document.getElementById('restart-btn');
-        if (this.gameMode === 'online' && restartBtn) {
-            restartBtn.innerText = 'もう一度探す';
-        } else if (restartBtn) {
-            restartBtn.innerText = 'もう一度！';
+        const changeCharBtn = document.getElementById('btn-change-char');
+        if (this.gameMode === 'online') {
+            if (restartBtn) {
+                restartBtn.innerText = 'もう一度！';
+                restartBtn.disabled = false;
+            }
+            if (changeCharBtn) changeCharBtn.classList.remove('hidden');
+        } else {
+            if (restartBtn) {
+                restartBtn.innerText = 'もう一度！';
+                restartBtn.disabled = false;
+            }
+            if (changeCharBtn) changeCharBtn.classList.add('hidden');
         }
 
         const overlay = document.getElementById('result-overlay');
-        if (overlay) overlay.classList.remove('hidden');
+        if (overlay) {
+            // リプレイ時にアニメーションを再実行するため一度クラスを外してつける
+            overlay.classList.add('hidden');
+            void overlay.offsetWidth; 
+            overlay.classList.remove('hidden');
+        }
     }
 }
 

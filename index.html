@@ -13,6 +13,14 @@
     <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
 </head>
 <body>
+    <!-- ========== 縦画面警告オーバーレイ ========== -->
+    <div id="landscape-warning-overlay" class="landscape-warning">
+        <div class="landscape-warning-content">
+            <div class="rotate-icon">📱🔄</div>
+            <h2>端末を横にしてください</h2>
+            <p>このゲームは横画面専用です。<br>画面の回転ロックを解除して、<br>端末を横向きにしてお楽しみください。</p>
+        </div>
+    </div>
 
     <!-- ========== SCREEN 1: タイトル画面 ========== -->
     <div id="screen-title" class="screen active">
@@ -241,7 +249,7 @@
                     <div class="next-box">NEXT: 
                         <div id="player-next-preview" class="next-preview-container"></div>
                     </div>
-                    <div class="ojyama-warning">💀予告スピキ: <div id="player-ojyama-icons" class="supiki-icon-container"></div></div>
+                    <div class="ojyama-warning">予告スピキ: <div id="player-ojyama-icons" class="supiki-icon-container"></div></div>
                 </div>
                 <div class="canvas-area-row">
                     <div id="player-chain-gauge" class="chain-gauge-container">
@@ -308,7 +316,7 @@
                     <div class="next-box">NEXT: 
                         <div id="cpu-next-preview" class="next-preview-container"></div>
                     </div>
-                    <div class="ojyama-warning">💀予告スピキ: <div id="cpu-ojyama-icons" class="supiki-icon-container"></div></div>
+                    <div class="ojyama-warning">予告スピキ: <div id="cpu-ojyama-icons" class="supiki-icon-container"></div></div>
                 </div>
                 <div class="canvas-area-row">
                     <div id="cpu-chain-gauge" class="chain-gauge-container">
@@ -377,23 +385,54 @@
             <div id="countdown-text" class="countdown-text">READY?</div>
         </div>
 
-        <!-- リザルト画面 -->
-        <div id="result-overlay" class="overlay hidden">
-            <div class="modal result-modal">
-                <h2 id="result-title">YOU WIN!</h2>
-                <div class="result-details">
-                    <div class="result-score-row" id="result-row-player">
-                        <span>あなた</span><span id="result-player-score">0</span>
+        <!-- リッチなリザルト画面 -->
+        <div id="result-overlay" class="result-fullscreen-overlay hidden">
+            <!-- 背景キャラクター -->
+            <img id="result-bg-char" src="" alt="" class="result-bg-char">
+            <div class="result-bg-tint"></div>
+
+            <div class="result-content">
+                <div class="result-header">
+                    <h2 id="result-main-title">WINNER!</h2>
+                </div>
+
+                <div class="result-players-area">
+                    <!-- プレイヤー側 -->
+                    <div class="result-player-card">
+                        <div class="result-player-name">あなた</div>
+                        <img id="result-player-char-thumb" src="" alt="" class="result-char-thumb">
+                        <div id="result-player-stamp" class="result-stamp win">WIN</div>
+                        <div class="result-score">SCORE: <span id="result-player-score">0</span></div>
                     </div>
-                    <div class="result-score-row" id="result-row-cpu">
-                        <span id="result-opponent-name">CPU</span><span id="result-cpu-score">0</span>
+                    
+                    <div class="result-vs">VS</div>
+
+                    <!-- 相手側 -->
+                    <div class="result-player-card">
+                        <div id="result-opponent-name" class="result-player-name">CPU</div>
+                        <img id="result-cpu-char-thumb" src="" alt="" class="result-char-thumb">
+                        <div id="result-cpu-stamp" class="result-stamp lose">LOSE</div>
+                        <div class="result-score">SCORE: <span id="result-cpu-score">0</span></div>
                     </div>
                 </div>
-                <div class="result-buttons">
-                    <button id="restart-btn" class="btn btn-primary">もう一度！</button>
-                    <button id="btn-back-select" class="btn btn-secondary">キャラ選択へ</button>
-                    <button id="btn-back-to-title" class="btn btn-secondary" style="margin-top:10px; width:100%;">タイトルへ戻る</button>
+
+                <div class="result-buttons-row">
+                    <button id="restart-btn" class="btn btn-primary btn-result">もう一度！</button>
+                    <button id="btn-change-char" class="btn btn-primary btn-result c-purple-btn hidden" style="background:#b336ff;box-shadow:0 6px 0 #7c1fc0;">キャラ変更！</button>
+                    <button id="btn-back-select" class="btn btn-secondary btn-result">やめる</button>
+                    <button id="btn-back-to-title" class="btn btn-secondary btn-result">タイトルへ戻る</button>
                 </div>
+            </div>
+        </div>
+
+        <!-- オンライン再戦時：キャラクター変更ポップアップ -->
+        <div id="online-char-select-overlay" class="overlay hidden">
+            <div class="modal select-modal" style="width: 90%; max-width: 800px; max-height: 85vh; overflow-y: auto;">
+                <h2>🔄 キャラクターを選び直す</h2>
+                <div id="online-char-list" class="char-list-grid">
+                    <!-- JSで生成 -->
+                </div>
+                <button id="btn-online-char-cancel" class="btn btn-secondary" style="margin-top: 20px;">キャンセル</button>
             </div>
         </div>
     </div>
